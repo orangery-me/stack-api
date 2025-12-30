@@ -69,17 +69,4 @@ export class UpdateUserDto {
   @Expose()
   @IsOptional()
   dateOfBirth?: Date;
-
-  @ApiProperty({
-    description: 'Số CMND/CCCD',
-    example: '123456789012',
-    minLength: 9,
-    maxLength: 12,
-  })
-  @Expose()
-  @IsNotEmpty({ message: 'Số CMND/CCCD không được để trống' })
-  @IsString({ message: 'Số CMND/CCCD phải là chuỗi' })
-  @Length(9, 12, { message: 'Số CMND/CCCD phải từ 9 đến 12 số' })
-  @Matches(/^[0-9]+$/, { message: 'Số CMND/CCCD chỉ được chứa số' })
-  identityId: string;
 }

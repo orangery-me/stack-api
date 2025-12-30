@@ -43,16 +43,4 @@ export class RegisterDto {
   @IsString({ message: 'Tên phải là chuỗi' })
   @Length(2, 50, { message: 'Tên phải từ 2 đến 50 ký tự' })
   name: string;
-
-  @ApiProperty({
-    description: 'Số CMND/CCCD',
-    example: '123456789012',
-    minLength: 9,
-    maxLength: 12,
-  })
-  @IsNotEmpty({ message: 'Số CMND/CCCD không được để trống' })
-  @IsString({ message: 'Số CMND/CCCD phải là chuỗi' })
-  @Length(9, 12, { message: 'Số CMND/CCCD phải từ 9 đến 12 số' })
-  @Matches(/^[0-9]+$/, { message: 'Số CMND/CCCD chỉ được chứa số' })
-  identityId: string;
 }

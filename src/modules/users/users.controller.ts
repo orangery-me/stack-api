@@ -120,30 +120,30 @@ export class UsersController {
     return await this.usersService.update(id, updateUserDto);
   }
 
-  @Post('avatar/:identityId')
+  @Post('avatar/:id')
   @ApiOperation({ summary: 'Upload ảnh đại diện' })
   @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'identityId', description: 'Số CMND/CCCD', type: String })
+  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
   @ApiResponse({ status: 200, description: 'Upload thành công' })
   @ApiResponse({ status: 400, description: 'File không hợp lệ' })
   @UseInterceptors(FileInterceptor('avatar', fileOption('users')))
   async uploadAvatar(
-    @Param('identityId') identityId: string,
+    @Param('id') id: string,
     @UploadedFile()
     avatar: Express.Multer.File
   ): Promise<any> {
     if (avatar) {
-      return await this.usersService.uploadAvatar(identityId, avatar);
+      return await this.usersService.uploadAvatar(id, avatar);
     }
     throw new BadRequestException('Hình ảnh không hợp lệ');
   }
 
-  @Patch('avatar/:identityId')
+  @Patch('avatar/:id')
   @ApiOperation({ summary: 'Xóa ảnh đại diện' })
-  @ApiParam({ name: 'identityId', description: 'Số CMND/CCCD', type: String })
+  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
   @ApiResponse({ status: 200, description: 'Xóa ảnh thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
-  async removeAvatar(@Param('identityId') identityId: string): Promise<ResponseItem<UserDto>> {
-    return await this.usersService.removeAvatar(identityId);
+  async removeAvatar(@Param('id') id: string): Promise<ResponseItem<UserDto>> {
+    return await this.usersService.removeAvatar(id);
   }
 }

@@ -106,9 +106,9 @@ export class EmailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .header { background: #B8A7FF; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
           .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-          .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .button { display: inline-block; background: white; color: #B8A7FF; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; border: 2px solid #B8A7FF; font-weight: bold; }
           .footer { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
         </style>
       </head>
@@ -148,9 +148,9 @@ export class EmailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #DC2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .header { background: #B8A7FF; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
           .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-          .button { display: inline-block; background: #DC2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .button { display: inline-block; background: #B8A7FF; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
           .footer { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
         </style>
       </head>
@@ -190,7 +190,7 @@ export class EmailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10B981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .header { background: #B8A7FF; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
           .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
           .footer { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
         </style>

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService as NestJwtService } from '@nestjs/jwt';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull } from 'typeorm';
 
 import { UserEntity } from '@app/entities';
 import { JwtPayload } from '@Constant/types';
@@ -13,8 +13,8 @@ export class JwtTokenService {
   constructor(
     private readonly jwtService: NestJwtService,
     private readonly configService: ConfigService,
-    @InjectModel(UserEntity.name)
-    private readonly userModel: Model<UserEntity>
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>
   ) {}
 
   /**
@@ -69,23 +69,25 @@ export class JwtTokenService {
    * Save refresh token to database
    */
   async saveRefreshToken(userId: string, refreshToken: string): Promise<void> {
-    await this.userModel.updateOne({ _id: userId }, { refreshToken });
+    await this.userRepository.update({ id: userId }, { refreshToken });
   }
 
   /**
    * Remove refresh token from database
    */
   async removeRefreshToken(userId: string): Promise<void> {
-    await this.userModel.updateOne({ _id: userId }, { refreshToken: null });
+    await this.userRepository.update({ id: userId }, { refreshToken: null });
   }
 
   /**
    * Find user by refresh token
    */
   async findUserByRefreshToken(refreshToken: string): Promise<UserEntity | null> {
-    return this.userModel.findOne({
-      refreshToken,
-      deletedAt: null,
+    return this.userRepository.findOne({
+      where: {
+        refreshToken,
+        deletedAt: IsNull(),
+      },
     });
   }
 
@@ -100,7 +102,7 @@ export class JwtTokenService {
       // Find user with this refresh token
       const user = await this.findUserByRefreshToken(refreshToken);
 
-      if (!user || user._id.toString() !== payload.sub) {
+      if (!user || user.id !== payload.sub) {
         return null;
       }
 
@@ -115,7 +117,7 @@ export class JwtTokenService {
    */
   createPayload(user: UserEntity): JwtPayload {
     return {
-      sub: user._id.toString(),
+      sub: user.id,
       email: user.email,
     };
   }
@@ -128,7 +130,7 @@ export class JwtTokenService {
     const { accessToken, refreshToken } = this.generateTokens(payload);
 
     // Save refresh token to database
-    await this.saveRefreshToken(user._id.toString(), refreshToken);
+    await this.saveRefreshToken(user.id, refreshToken);
 
     return {
       accessToken,

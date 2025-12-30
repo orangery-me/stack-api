@@ -1,19 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Seeder, DataFactory } from 'nestjs-seeder';
-import * as bcrypt from 'bcrypt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Seeder } from 'nestjs-seeder';
+// import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 import { UserEntity } from '@app/entities';
 import { UserStatusEnum, UserRoleEnum } from '@Constant/enums';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class UserSeeder implements Seeder {
-  constructor(@InjectModel(UserEntity.name) private readonly userModel: Model<UserEntity>) {}
+  constructor(@InjectRepository(UserEntity) private readonly userRepository: Repository<UserEntity>) {}
 
   async seed(): Promise<any> {
     // Check if users already exist
-    const existingUsers = await this.userModel.countDocuments();
+    const existingUsers = await this.userRepository.count();
     if (existingUsers > 0) {
       console.log('🌱 Users already exist, skipping seed...');
       return;
@@ -25,7 +26,6 @@ export class UserSeeder implements Seeder {
       phone: '0123456789',
       password: await bcrypt.hash('admin123456', 10),
       name: 'Admin Stack App',
-      identityId: '123456789012',
       status: UserStatusEnum.ACTIVE,
       role: UserRoleEnum.ADMIN,
       emailVerified: true,
@@ -41,7 +41,6 @@ export class UserSeeder implements Seeder {
       phone: '0987654321',
       password: await bcrypt.hash('mod123456', 10),
       name: 'Moderator Stack App',
-      identityId: '987654321098',
       status: UserStatusEnum.ACTIVE,
       role: UserRoleEnum.MODERATOR,
       emailVerified: true,
@@ -58,7 +57,6 @@ export class UserSeeder implements Seeder {
         phone: '0111111111',
         password: await bcrypt.hash('user123456', 10),
         name: 'Nguyễn Văn An',
-        identityId: '111111111111',
         status: UserStatusEnum.ACTIVE,
         role: UserRoleEnum.USER,
         emailVerified: true,
@@ -72,7 +70,6 @@ export class UserSeeder implements Seeder {
         phone: '0222222222',
         password: await bcrypt.hash('user123456', 10),
         name: 'Trần Thị Bình',
-        identityId: '222222222222',
         status: UserStatusEnum.ACTIVE,
         role: UserRoleEnum.USER,
         emailVerified: true,
@@ -86,7 +83,6 @@ export class UserSeeder implements Seeder {
         phone: '0333333333',
         password: await bcrypt.hash('user123456', 10),
         name: 'Lê Văn Cường',
-        identityId: '333333333333',
         status: UserStatusEnum.INACTIVE,
         role: UserRoleEnum.USER,
         emailVerified: false,
@@ -100,7 +96,6 @@ export class UserSeeder implements Seeder {
         phone: '0444444444',
         password: await bcrypt.hash('user123456', 10),
         name: 'Phạm Thị Dương',
-        identityId: '444444444444',
         status: UserStatusEnum.BLOCKED,
         role: UserRoleEnum.USER,
         emailVerified: true,
@@ -114,7 +109,6 @@ export class UserSeeder implements Seeder {
         phone: '0555555555',
         password: await bcrypt.hash('user123456', 10),
         name: 'Hoàng Văn Em',
-        identityId: '555555555555',
         status: UserStatusEnum.PENDING_VERIFICATION,
         role: UserRoleEnum.USER,
         emailVerified: false,
@@ -133,7 +127,6 @@ export class UserSeeder implements Seeder {
       phone: '0666666666',
       password: null, // Google users don't have password
       name: 'Google User Example',
-      identityId: '666666666666',
       status: UserStatusEnum.ACTIVE,
       role: UserRoleEnum.USER,
       emailVerified: true,
@@ -147,21 +140,21 @@ export class UserSeeder implements Seeder {
     const allUsers = [adminUser, moderatorUser, ...regularUsers, googleUser];
 
     // Insert all users
-    const insertedUsers = await this.userModel.insertMany(allUsers);
+    const insertedUsers = await this.userRepository.insert(allUsers);
 
     console.log('🌱 Successfully seeded users:');
     console.log(`   📧 Admin: ${adminUser.email} / admin123456`);
     console.log(`   🛡️  Moderator: ${moderatorUser.email} / mod123456`);
     console.log(`   👤 Regular Users: ${regularUsers.length} users / user123456`);
     console.log(`   🔗 Google User: ${googleUser.email}`);
-    console.log(`   📊 Total: ${insertedUsers.length} users created`);
+    console.log(`   📊 Total: ${insertedUsers.raw.length} users created`);
 
     return insertedUsers;
   }
 
   async drop(): Promise<any> {
-    const deletedCount = await this.userModel.deleteMany({});
-    console.log(`🗑️  Dropped ${deletedCount.deletedCount} users`);
+    const deletedCount = await this.userRepository.delete({});
+    console.log(`🗑️  Dropped ${deletedCount.raw.length} users`);
     return deletedCount;
   }
 }

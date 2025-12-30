@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcrypt';
+import { InjectRepository } from '@nestjs/typeorm';
+// import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { plainToClass } from 'class-transformer';
 import * as fs from 'fs';
 import { Model } from 'mongoose';
@@ -23,7 +24,7 @@ export class UsersService {
   constructor(
     private readonly configService: ConfigService,
 
-    @InjectModel(UserEntity.name)
+    @InjectRepository(UserEntity)
     private readonly userModel: Model<UserEntity>
   ) {}
 
@@ -33,14 +34,6 @@ export class UsersService {
       deletedAt: null,
     });
     if (emailExisted) throw new BadRequestException('Email đã tồn tại');
-
-    const identityIdExisted = await this.userModel.findOne({
-      identityId: params.identityId,
-      deletedAt: null,
-    });
-    if (identityIdExisted) {
-      throw new BadRequestException('CMND/CCCD đã tồn tại');
-    }
 
     const existPhone = await this.userModel.findOne({
       phone: params.phone,
@@ -155,15 +148,6 @@ export class UsersService {
       throw new BadRequestException('Thông tin cá nhân không tồn tại');
     }
 
-    const identityIdExisted = await this.userModel.findOne({
-      identityId: updateUserDto.identityId,
-      _id: { $ne: id },
-      deletedAt: null,
-    });
-    if (identityIdExisted) {
-      throw new BadRequestException('CMND/CCCD đã tồn tại');
-    }
-
     const phoneExisted = await this.userModel.findOne({
       phone: updateUserDto.phone,
       _id: { $ne: id },
@@ -198,15 +182,6 @@ export class UsersService {
     });
     if (emailExisted) throw new BadRequestException('Email đã tồn tại');
 
-    const identityIdExisted = await this.userModel.findOne({
-      identityId: updateUserDto.identityId,
-      _id: { $ne: id },
-      deletedAt: null,
-    });
-    if (identityIdExisted) {
-      throw new BadRequestException('CMND/CCCD đã tồn tại');
-    }
-
     const phoneExisted = await this.userModel.findOne({
       phone: updateUserDto.phone,
       _id: { $ne: id },
@@ -238,14 +213,14 @@ export class UsersService {
     return new ResponseItem(null, 'Xóa nhân viên thành công');
   }
 
-  async uploadAvatar(identityId: string, file: Express.Multer.File): Promise<ResponseItem<any>> {
-    const user = await this.userModel.findOne({ identityId, deletedAt: null });
+  async uploadAvatar(id: string, file: Express.Multer.File): Promise<ResponseItem<any>> {
+    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
 
     if (!user) {
       throw new BadRequestException('Nhân viên không tồn tại');
     }
 
-    await this.userModel.updateOne({ identityId }, { avatar: avtPathName('users', file.filename) });
+    await this.userModel.updateOne({ _id: id }, { avatar: avtPathName('users', file.filename) });
 
     if (fs.existsSync(user.avatar)) {
       fs.unlinkSync(user.avatar);
@@ -254,14 +229,14 @@ export class UsersService {
     return new ResponseItem(null, 'Cập nhật thông tin thành công');
   }
 
-  async removeAvatar(identityId: string): Promise<ResponseItem<any>> {
-    const user = await this.userModel.findOne({ identityId, deletedAt: null });
+  async removeAvatar(id: string): Promise<ResponseItem<any>> {
+    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
 
     if (!user) {
       throw new BadRequestException('Nhân viên không tồn tại');
     }
 
-    await this.userModel.updateOne({ identityId }, { avatar: null });
+    await this.userModel.updateOne({ _id: id }, { avatar: null });
 
     if (fs.existsSync(user.avatar)) {
       fs.unlinkSync(user.avatar);

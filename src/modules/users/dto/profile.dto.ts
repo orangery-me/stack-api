@@ -19,8 +19,5 @@ export class ProfileDto {
   address: string;
 
   @Expose()
-  identityId: string;
-
-  @Expose()
   avatar: string;
 }

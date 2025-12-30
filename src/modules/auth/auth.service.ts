@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcrypt';
+import { InjectRepository } from '@nestjs/typeorm';
+// import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { Model } from 'mongoose';
+import { Repository, IsNull, MoreThan } from 'typeorm';
 import { I18nService } from 'nestjs-i18n';
 
 import { UserEntity } from '@app/entities';
@@ -23,14 +24,16 @@ export class AuthService {
     private readonly jwtTokenService: JwtTokenService,
     private readonly emailService: EmailService,
     private readonly i18n: I18nService,
-    @InjectModel(UserEntity.name)
-    private readonly userModel: Model<UserEntity>
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>
   ) {}
 
   async validateUser(credentialsDto: CredentialsDto, lang = 'vi'): Promise<UserPayloadDto> {
-    const user = await this.userModel.findOne({
-      email: credentialsDto.email,
-      deletedBy: null,
+    const user = await this.userRepository.findOne({
+      where: {
+        email: credentialsDto.email,
+        deletedAt: IsNull(),
+      },
     });
 
     if (!user) {
@@ -58,7 +61,7 @@ export class AuthService {
     }
 
     return {
-      id: user._id.toString(),
+      id: user.id,
       email: user.email,
       name: user.name,
     };
@@ -66,7 +69,9 @@ export class AuthService {
 
   async login(userPayloadDto: UserPayloadDto, lang = 'vi'): Promise<ResponseItem<TokenDto>> {
     // Find the full user document
-    const user = await this.userModel.findById(userPayloadDto.id);
+    const user = await this.userRepository.findOne({
+      where: { id: userPayloadDto.id },
+    });
     if (!user) {
       throw new UnauthorizedException(await this.i18n.translate('auth.token.user_not_found', { lang }));
     }
@@ -98,9 +103,11 @@ export class AuthService {
 
   async register(registerDto: RegisterDto): Promise<ResponseItem<{ message: string; email: string }>> {
     // Check if email already exists
-    const existingUser = await this.userModel.findOne({
-      email: registerDto.email,
-      deletedAt: null,
+    const existingUser = await this.userRepository.findOne({
+      where: {
+        email: registerDto.email,
+        deletedAt: IsNull(),
+      },
     });
 
     if (existingUser) {
@@ -108,23 +115,15 @@ export class AuthService {
     }
 
     // Check if phone already exists
-    const existingPhone = await this.userModel.findOne({
-      phone: registerDto.phone,
-      deletedAt: null,
+    const existingPhone = await this.userRepository.findOne({
+      where: {
+        phone: registerDto.phone,
+        deletedAt: IsNull(),
+      },
     });
 
     if (existingPhone) {
       throw new BadRequestException('Số điện thoại đã được sử dụng');
-    }
-
-    // Check if identity ID already exists
-    const existingIdentity = await this.userModel.findOne({
-      identityId: registerDto.identityId,
-      deletedAt: null,
-    });
-
-    if (existingIdentity) {
-      throw new BadRequestException('Số CMND/CCCD đã được sử dụng');
     }
 
     // Generate email verification token
@@ -132,7 +131,7 @@ export class AuthService {
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Create user
-    const user = new this.userModel({
+    const user = this.userRepository.create({
       ...registerDto,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: verificationExpires,
@@ -141,7 +140,7 @@ export class AuthService {
       status: UserStatusEnum.PENDING_VERIFICATION, // Will be activated after email verification
     });
 
-    await user.save();
+    await this.userRepository.save(user);
 
     // Send verification email
     const emailSent = await this.emailService.sendVerificationEmail(user.email, user.name, verificationToken);
@@ -161,10 +160,12 @@ export class AuthService {
   }
 
   async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<ResponseItem<{ message: string }>> {
-    const user = await this.userModel.findOne({
-      emailVerificationToken: verifyEmailDto.token,
-      emailVerificationExpires: { $gt: new Date() },
-      deletedAt: null,
+    const user = await this.userRepository.findOne({
+      where: {
+        emailVerificationToken: verifyEmailDto.token,
+        emailVerificationExpires: MoreThan(new Date()),
+        deletedAt: IsNull(),
+      },
     });
 
     if (!user) {
@@ -180,7 +181,7 @@ export class AuthService {
     user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     user.status = UserStatusEnum.ACTIVE;
-    await user.save();
+    await this.userRepository.save(user);
 
     // Send welcome email
     await this.emailService.sendWelcomeEmail(user.email, user.name);
@@ -192,9 +193,11 @@ export class AuthService {
   }
 
   async resendVerification(resendDto: ResendVerificationDto): Promise<ResponseItem<{ message: string }>> {
-    const user = await this.userModel.findOne({
-      email: resendDto.email,
-      deletedAt: null,
+    const user = await this.userRepository.findOne({
+      where: {
+        email: resendDto.email,
+        deletedAt: IsNull(),
+      },
     });
 
     if (!user) {
@@ -211,7 +214,7 @@ export class AuthService {
 
     user.emailVerificationToken = verificationToken;
     user.emailVerificationExpires = verificationExpires;
-    await user.save();
+    await this.userRepository.save(user);
 
     // Send verification email
     const emailSent = await this.emailService.sendVerificationEmail(user.email, user.name, verificationToken);
@@ -227,9 +230,11 @@ export class AuthService {
   }
 
   async googleLogin(googleUser: any): Promise<ResponseItem<TokenDto>> {
-    let user = await this.userModel.findOne({
-      $or: [{ googleId: googleUser.googleId }, { email: googleUser.email }],
-      deletedAt: null,
+    let user = await this.userRepository.findOne({
+      where: [
+        { googleId: googleUser.googleId, deletedAt: IsNull() },
+        { email: googleUser.email, deletedAt: IsNull() },
+      ],
     });
 
     if (user) {
@@ -242,11 +247,11 @@ export class AuthService {
         if (googleUser.avatar && !user.avatar) {
           user.avatar = googleUser.avatar;
         }
-        await user.save();
+        await this.userRepository.save(user);
       }
     } else {
       // Create new user
-      user = new this.userModel({
+      user = this.userRepository.create({
         googleId: googleUser.googleId,
         email: googleUser.email,
         name: googleUser.name,
@@ -256,9 +261,8 @@ export class AuthService {
         status: UserStatusEnum.ACTIVE,
         // Generate dummy values for required fields
         phone: '',
-        identityId: '',
       });
-      await user.save();
+      await this.userRepository.save(user);
 
       // Send welcome email
       await this.emailService.sendWelcomeEmail(user.email, user.name);

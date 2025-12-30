@@ -1,39 +1,31 @@
-import { Prop, Schema } from '@nestjs/mongoose';
 import { Exclude, Transform } from 'class-transformer';
-import { Document, Types } from 'mongoose';
+import { Column } from 'typeorm';
 
-@Schema({
-  timestamps: true,
-  versionKey: false,
-})
-export abstract class AbstractEntity extends Document {
-  @Transform(({ value }) => value?.toString())
-  _id: Types.ObjectId;
-
+export abstract class AbstractEntity {
   @Transform(({ value }) => value?.toString())
   id: string;
 
-  @Prop({ type: Date, default: Date.now })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   @Exclude()
   createdAt: Date;
 
-  @Prop({ type: String, required: false })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   createdBy?: string;
 
-  @Prop({ type: Date, default: Date.now })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   @Exclude()
   updatedAt: Date;
 
-  @Prop({ type: String, required: false })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   updatedBy?: string;
 
-  @Prop({ type: Date, required: false })
+  @Column({ type: 'timestamp', nullable: true })
   @Exclude()
   deletedAt?: Date;
 
-  @Prop({ type: String, required: false })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   deletedBy?: string;
 }
