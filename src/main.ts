@@ -24,7 +24,7 @@ async function bootstrap() {
   // Get environment variables
   const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
 
-  const port = process.env.PORT || configService.get<number>('APP_PORT') || 3000;
+  const port = process.env.PORT || configService.get<number>('APP_PORT');
 
   const enableSwagger = configService.get<boolean>('ENABLE_SWAGGER', true);
 

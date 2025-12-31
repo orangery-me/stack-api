@@ -11,7 +11,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-8105}:8105"
     volumes:
       - /home/ubuntu/api/data:/app/data
       - /home/ubuntu/api/uploads:/app/public/uploads
