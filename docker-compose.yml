@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: orangery/stack-app-backend:latest
     container_name: ${APP_NAME:-stack-app}-backend
     restart: unless-stopped
     env_file:
@@ -12,13 +13,9 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     volumes:
-      # Mount volume để lưu dữ liệu persistent
       - /home/ubuntu/api/data:/app/data
       - /home/ubuntu/api/uploads:/app/public/uploads
       - /home/ubuntu/api/logs:/app/logs
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
     networks:
       - stack-network
 
