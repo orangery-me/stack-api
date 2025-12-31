@@ -66,7 +66,7 @@ What things you need to install the software and how to install them :
 
    ```bash
    # Application Configuration
-   APP_PORT=3000
+   APP_PORT=8105
 
    # MongoDB Configuration
    MONGODB_URI=mongodb://localhost:27017/stack-app

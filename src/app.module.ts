@@ -29,7 +29,7 @@ import * as Joi from 'joi';
     ConfigModule.forRoot({
       validationSchema: Joi.object({
         // Application
-        APP_PORT: Joi.number().default(3000),
+        APP_PORT: Joi.number().default(8105),
         NODE_ENV: Joi.string().valid('development', 'staging', 'production').default('development'),
 
         // Database - PostgreSQL
