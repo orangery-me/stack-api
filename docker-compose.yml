@@ -1,34 +1,27 @@
-version: '3'
+version: "3.8"
 
 services:
-  # backend:
-  #   build:
-  #     dockerfile: docker/Dockerfile.local
-  #     context: .
-  #   container_name: ${APP_NAME}-app
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - 6001:6001
-  #   command: sh -c "npm run start:dev"
-  #   volumes:
-  #     - ./:/app
-  #     - /app/node_modules
-  #   depends_on:
-  #     - db
-
-  db:
-    image: postgres:14.4-alpine
-    container_name: ${APP_NAME}-db
-    environment:
-      POSTGRES_DB: ${DB_POSTGRE_DATABASE}
-      POSTGRES_USER: ${DB_POSTGRE_USERNAME}
-      POSTGRES_PASSWORD: ${DB_POSTGRE_PASSWORD}
-    ports:
-      - 5432:${DB_POSTGRE_PORT}
-    volumes:
-      - ${APP_NAME}-data:/var/lib/postgresql/data
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME:-stack-app}-backend
     restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Mount volume để lưu dữ liệu persistent
+      - /home/ubuntu/api/data:/app/data
+      - /home/ubuntu/api/uploads:/app/public/uploads
+      - /home/ubuntu/api/logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    networks:
+      - stack-network
 
-volumes:
-  ${APP_NAME}-data:
+networks:
+  stack-network:
+    driver: bridge
