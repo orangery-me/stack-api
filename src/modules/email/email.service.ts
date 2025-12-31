@@ -62,8 +62,7 @@ export class EmailService {
   }
 
   async sendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {
-    const clientUrl = this.configService.get<string>('CLIENT_URL');
-    const verificationUrl = `${clientUrl}/auth/verify-email?token=${token}`;
+    const verificationUrl = `${this.configService.get<string>('APP_URL')}/auth/verify-email?token=${token}`;
 
     const html = this.getVerificationEmailTemplate(name, verificationUrl);
 
@@ -75,8 +74,7 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
-    const clientUrl = this.configService.get<string>('CLIENT_URL');
-    const resetUrl = `${clientUrl}/auth/reset-password?token=${token}`;
+    const resetUrl = `${this.configService.get<string>('APP_URL')}/auth/reset-password?token=${token}`;
 
     const html = this.getPasswordResetEmailTemplate(name, resetUrl);
 
