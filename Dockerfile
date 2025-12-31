@@ -15,12 +15,12 @@ RUN yarn build
 FROM node:22-alpine AS production
 WORKDIR /app
 
-RUN apk add --no-cache dumb-init \
+RUN apk add --no-cache dumb-init python3 make g++ \
     && addgroup -g 1001 -S nodejs \
     && adduser -S nestjs -u 1001
 
 COPY package*.json yarn.lock ./
-RUN yarn install --frozen-lockfile --production=true && yarn cache clean
+RUN yarn install --frozen-lockfile --production && yarn cache clean
 
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/public ./public
