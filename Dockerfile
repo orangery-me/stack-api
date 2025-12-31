@@ -22,7 +22,6 @@ RUN apk add --no-cache dumb-init \
     && adduser -S nestjs -u 1001
 
 COPY package*.json yarn.lock ./
-RUN yarn install --frozen-lockfile --production && yarn cache clean
 
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
