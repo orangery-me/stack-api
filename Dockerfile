@@ -11,26 +11,29 @@ RUN yarn install --frozen-lockfile
 COPY . .
 RUN yarn build
 
+RUN yarn install --production --frozen-lockfile && yarn cache clean
+
 # Production stage
 FROM node:22-alpine AS production
 WORKDIR /app
 
-RUN apk add --no-cache dumb-init python3 make g++ \
+RUN apk add --no-cache dumb-init \
     && addgroup -g 1001 -S nodejs \
     && adduser -S nestjs -u 1001
 
 COPY package*.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production && yarn cache clean
 
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/public ./public
 COPY --from=builder --chown=nestjs:nodejs /app/src/i18n ./src/i18n
 
 USER nestjs
 
-EXPOSE 8080
+EXPOSE 8105
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=8105
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/main.js"]
