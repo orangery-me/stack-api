@@ -9,8 +9,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { XMLMiddleware } from './common/middleware/xml.middleware';
 import { KeepAliveModule } from './modules/keep-alive/keep-alive.module';
 import { EmailModule } from './modules/email/email.module';
-import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -73,7 +73,7 @@ import * as Joi from 'joi';
         GOOGLE_CALLBACK_URL: Joi.string().required(),
 
         // App URL
-        APP_URL: Joi.string().required(),
+        APP_URL: Joi.string().optional().default('http://localhost:8105'),
 
         // Optional
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
@@ -82,9 +82,6 @@ import * as Joi from 'joi';
     }),
     DatabaseModule,
     EmailModule,
-    // TODO: Tạm thời tắt các module dùng MongoDB (UsersModule, AuthModule)
-    // để chỉ chạy với PostgreSQL. Khi migrate sang TypeORM,
-    // có thể bật lại hoặc tạo module mới dùng TypeORM.
     UsersModule,
     AuthModule,
     KeepAliveModule,
