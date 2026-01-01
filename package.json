@@ -46,6 +46,7 @@
     "joi": "^17.13.3",
     "moment": "^2.30.1",
     "mongoose": "^7.5.0",
+    "multer": "^2.0.2",
     "nestjs-i18n": "^10.5.1",
     "nestjs-seeder": "^0.3.2",
     "nodemailer": "^6.9.7",
