@@ -5,13 +5,14 @@ WORKDIR /app
 # Add build tools
 RUN apk add --no-cache python3 make g++
 
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN corepack enable
+RUN corepack prepare pnpm@latest --activate
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN yarn build
-
-RUN yarn install --production --frozen-lockfile && yarn cache clean
+RUN pnpm build
 
 # Production stage
 FROM node:22-alpine AS production
@@ -21,12 +22,13 @@ RUN apk add --no-cache dumb-init \
     && addgroup -g 1001 -S nodejs \
     && adduser -S nestjs -u 1001
 
-COPY package*.json yarn.lock ./
+RUN corepack enable
+RUN corepack prepare pnpm@latest --activate
 
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/public ./public
-COPY --from=builder --chown=nestjs:nodejs /app/src/i18n ./src/i18n
+# COPY --from=builder --chown=nestjs:nodejs /app/public ./public
+# COPY --from=builder --chown=nestjs:nodejs /app/src/i18n ./src/i18n
 
 USER nestjs
 
