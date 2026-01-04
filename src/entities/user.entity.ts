@@ -1,7 +1,15 @@
 // import * as bcrypt from 'bcrypt';
 import * as bcrypt from 'bcryptjs';
 import { Exclude } from 'class-transformer';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  BeforeInsert,
+  BeforeUpdate,
+} from 'typeorm';
 import { UserStatusEnum, UserRoleEnum } from '@Constant/enums';
 
 @Entity('users')

@@ -1,11 +1,10 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-// import * as bcrypt from 'bcrypt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { Repository, IsNull, MoreThan } from 'typeorm';
 import { I18nService } from 'nestjs-i18n';
-
 import { UserEntity } from '@app/entities';
 import { CredentialsDto } from './dto/credentials.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -24,6 +23,7 @@ export class AuthService {
     private readonly jwtTokenService: JwtTokenService,
     private readonly emailService: EmailService,
     private readonly i18n: I18nService,
+    private readonly configService: ConfigService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>
   ) {}
@@ -227,50 +227,5 @@ export class AuthService {
       { message: 'Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư.' },
       'Gửi email thành công'
     );
-  }
-
-  async googleLogin(googleUser: any): Promise<ResponseItem<TokenDto>> {
-    let user = await this.userRepository.findOne({
-      where: [
-        { googleId: googleUser.googleId, deletedAt: IsNull() },
-        { email: googleUser.email, deletedAt: IsNull() },
-      ],
-    });
-
-    if (user) {
-      // User exists, update Google ID if needed
-      if (!user.googleId && user.email === googleUser.email) {
-        user.googleId = googleUser.googleId;
-        user.provider = 'google';
-        user.emailVerified = true; // Google emails are verified
-        user.status = UserStatusEnum.ACTIVE;
-        if (googleUser.avatar && !user.avatar) {
-          user.avatar = googleUser.avatar;
-        }
-        await this.userRepository.save(user);
-      }
-    } else {
-      // Create new user
-      user = this.userRepository.create({
-        googleId: googleUser.googleId,
-        email: googleUser.email,
-        name: googleUser.name,
-        avatar: googleUser.avatar,
-        provider: 'google',
-        emailVerified: true,
-        status: UserStatusEnum.ACTIVE,
-        // Generate dummy values for required fields
-        phone: '',
-      });
-      await this.userRepository.save(user);
-
-      // Send welcome email
-      await this.emailService.sendWelcomeEmail(user.email, user.name);
-    }
-
-    // Generate tokens
-    const tokenData = await this.jwtTokenService.generateTokenResponse(user);
-
-    return new ResponseItem(tokenData, 'Đăng nhập Google thành công');
   }
 }
