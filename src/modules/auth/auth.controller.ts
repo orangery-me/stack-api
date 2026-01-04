@@ -8,16 +8,17 @@ import { CredentialsDto } from './dto/credentials.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { GoogleCodeDto } from './dto/google-code.dto';
 import { TokenDto } from './dto/token.dto';
 import { JwtAccessTokenGuard } from './guards/jwt-access-token.guard';
 import { JwtRefreshTokenGuard } from './guards/jwt-refresh-token.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GoogleAuthService } from './google-auth.service';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService, private readonly googleAuthService: GoogleAuthService) {}
 
   @UseGuards(LocalAuthGuard)
   @HttpCode(200)
@@ -131,24 +132,13 @@ export class AuthController {
     return this.authService.resendVerification(resendDto);
   }
 
-  @Get('google')
-  @UseGuards(GoogleAuthGuard)
-  @ApiOperation({ summary: 'Đăng nhập bằng Google' })
-  @ApiResponse({ status: 302, description: 'Chuyển hướng đến Google OAuth' })
-  async googleAuth() {
-    // This route initiates Google OAuth
-    // The actual logic is handled by GoogleAuthGuard
-  }
-
-  @Get('google/callback')
-  @UseGuards(GoogleAuthGuard)
-  @ApiOperation({ summary: 'Callback từ Google OAuth' })
-  @ApiResponse({
-    status: 200,
-    description: 'Đăng nhập Google thành công',
-    type: TokenDto,
-  })
-  async googleAuthRedirect(@Req() req) {
-    return this.authService.googleLogin(req.user);
+  @Post('google/login')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Đăng nhập bằng Google (Authorization Code)' })
+  @ApiBody({ type: GoogleCodeDto })
+  @ApiResponse({ status: 200, type: TokenDto })
+  async verifyGoogleCode(@Body() googleCodeDto: GoogleCodeDto, @Req() req) {
+    const expectedState = req.cookies?.google_oauth_state;
+    return this.googleAuthService.verifyGoogleCode(googleCodeDto, expectedState);
   }
 }

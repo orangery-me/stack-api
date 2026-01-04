@@ -13,6 +13,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtTokenService } from './services/jwt.service';
 import { EmailModule } from '../email/email.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { GoogleAuthService } from './google-auth.service';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
   controllers: [AuthController],
   providers: [
     AuthService,
+    GoogleAuthService,
     JwtTokenService,
     LocalStrategy,
     JwtAccessTokenStrategy,
@@ -39,6 +41,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
     GoogleStrategy,
     ConfigService,
   ],
-  exports: [AuthService, JwtTokenService],
+  exports: [AuthService, GoogleAuthService, JwtTokenService],
 })
 export class AuthModule {}
