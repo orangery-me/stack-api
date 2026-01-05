@@ -1,5 +1,16 @@
 import { ResponseItem } from '@app/common/dtos';
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { I18nLang } from 'nestjs-i18n';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiHeader, ApiBody } from '@nestjs/swagger';
 
@@ -138,7 +149,10 @@ export class AuthController {
   @ApiBody({ type: GoogleCodeDto })
   @ApiResponse({ status: 200, type: TokenDto })
   async verifyGoogleCode(@Body() googleCodeDto: GoogleCodeDto, @Req() req) {
-    const expectedState = req.cookies?.google_oauth_state;
+    const expectedState = req.cookies?.google_oauth_state || req.signedCookies?.google_oauth_state;
+    if (!expectedState) {
+      throw new UnauthorizedException('OAuth state cookie not found. Please try logging in again.');
+    }
     return this.googleAuthService.verifyGoogleCode(googleCodeDto, expectedState);
   }
 }
