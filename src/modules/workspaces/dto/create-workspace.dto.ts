@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, Length, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { WorkspacePlanEnum } from '@Constant/enums';
+import { InviteItemDto } from './invite-item.dto';
 
 export class CreateWorkspaceDto {
   @ApiProperty({
@@ -15,16 +17,25 @@ export class CreateWorkspaceDto {
   name: string;
 
   @ApiProperty({
-    description: 'Slug của workspace (dùng cho URL)',
-    example: 'my-workspace',
+    description: 'Tên hiển thị của bạn trong workspace này',
+    example: 'John Doe',
     minLength: 2,
-    maxLength: 255,
+    maxLength: 50,
   })
-  @IsNotEmpty({ message: 'Slug không được để trống' })
-  @IsString({ message: 'Slug phải là chuỗi' })
-  @Length(2, 255, { message: 'Slug phải từ 2 đến 255 ký tự' })
-  @Matches(/^[a-z0-9-]+$/, { message: 'Slug chỉ được chứa chữ thường, số và dấu gạch ngang' })
-  slug: string;
+  @IsNotEmpty({ message: 'Tên hiển thị không được để trống' })
+  @IsString({ message: 'Tên hiển thị phải là chuỗi' })
+  @Length(2, 50, { message: 'Tên hiển thị phải từ 2 đến 50 ký tự' })
+  displayName: string;
+
+  @ApiPropertyOptional({
+    description: 'Danh sách người được mời vào workspace',
+    type: [InviteItemDto],
+  })
+  @IsOptional()
+  @IsArray({ message: 'Invites phải là một mảng' })
+  @ValidateNested({ each: true })
+  @Type(() => InviteItemDto)
+  invites?: InviteItemDto[];
 
   @ApiPropertyOptional({
     description: 'Gói dịch vụ',

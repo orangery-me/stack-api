@@ -28,15 +28,36 @@ export class WorkspacesService {
     private readonly emailService: EmailService
   ) {}
 
-  async createWorkspace(userId: string, createDto: CreateWorkspaceDto): Promise<ResponseItem<WorkspaceDto>> {
-    // Check if slug already exists
-    const existingWorkspace = await this.workspaceRepository.findOne({
-      where: { slug: createDto.slug },
+  private generateSlug(name: string): string {
+    const slugBase = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const timestamp = Date.now();
+    return `${slugBase}-${timestamp}`;
+  }
+
+  private async checkDuplicateName(userId: string, name: string): Promise<void> {
+    // Get all workspaces where user is a member
+    const members = await this.workspaceMemberRepository.find({
+      where: { userId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['workspace'],
     });
 
-    if (existingWorkspace) {
-      throw new BadRequestException('Slug đã được sử dụng');
+    const userWorkspaces = members.map((m) => m.workspace).filter((w) => w !== null);
+    const duplicateWorkspace = userWorkspaces.find((w) => w.name.toLowerCase().trim() === name.toLowerCase().trim());
+
+    if (duplicateWorkspace) {
+      throw new BadRequestException('Bạn đã có workspace với tên này');
     }
+  }
+
+  async createWorkspace(userId: string, createDto: CreateWorkspaceDto): Promise<ResponseItem<WorkspaceDto>> {
+    // Check duplicate name for this user
+    await this.checkDuplicateName(userId, createDto.name);
 
     // Verify user exists
     const user = await this.userRepository.findOne({
@@ -47,10 +68,34 @@ export class WorkspacesService {
       throw new NotFoundException('User không tồn tại');
     }
 
+    // Generate slug automatically
+    let slug = this.generateSlug(createDto.name);
+    let slugExists = true;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    // Ensure slug is unique (in case of collision)
+    while (slugExists && attempts < maxAttempts) {
+      const existingWorkspace = await this.workspaceRepository.findOne({
+        where: { slug },
+      });
+
+      if (!existingWorkspace) {
+        slugExists = false;
+      } else {
+        slug = this.generateSlug(createDto.name);
+        attempts++;
+      }
+    }
+
+    if (slugExists) {
+      throw new BadRequestException('Không thể tạo slug duy nhất cho workspace');
+    }
+
     // Create workspace
     const workspace = this.workspaceRepository.create({
       name: createDto.name,
-      slug: createDto.slug,
+      slug,
       ownerId: userId,
       plan: createDto.plan || WorkspacePlanEnum.FREE,
     });
@@ -72,15 +117,74 @@ export class WorkspacesService {
       throw new BadRequestException('Không thể tạo owner role');
     }
 
-    // Create workspace member for creator (owner)
+    // Create workspace member for creator (owner) with displayName
     const workspaceMember = this.workspaceMemberRepository.create({
       workspaceId: savedWorkspace.id,
       userId: userId,
       roleId: ownerRole.id,
+      displayName: createDto.displayName,
       status: WorkspaceMemberStatusEnum.ACTIVE,
     });
 
     await this.workspaceMemberRepository.save(workspaceMember);
+
+    // Process invites if provided
+    if (createDto.invites && createDto.invites.length > 0) {
+      for (const inviteItem of createDto.invites) {
+        // Verify user exists
+        const invitedUser = await this.userRepository.findOne({
+          where: { email: inviteItem.email, deletedAt: IsNull() },
+        });
+
+        if (!invitedUser) {
+          continue; // Skip if user doesn't exist
+        }
+
+        // Check if user is already a member
+        const existingMember = await this.workspaceMemberRepository.findOne({
+          where: { workspaceId: savedWorkspace.id, userId: invitedUser.id },
+        });
+
+        if (existingMember) {
+          continue; // Skip if already a member
+        }
+
+        // Verify role exists by name
+        const inviteRole = await this.workspaceRoleRepository.findOne({
+          where: { name: inviteItem.role, workspaceId: savedWorkspace.id },
+        });
+
+        if (!inviteRole) {
+          continue; // Skip if role doesn't exist
+        }
+
+        // Generate invite token
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        // Create invite
+        const invite = this.workspaceInviteRepository.create({
+          workspaceId: savedWorkspace.id,
+          email: inviteItem.email,
+          roleId: inviteRole.id,
+          invitedBy: workspaceMember.id,
+          token,
+          expiresAt,
+        });
+
+        await this.workspaceInviteRepository.save(invite);
+
+        // Send invite email
+        await this.emailService.sendWorkspaceInviteEmail(
+          inviteItem.email,
+          createDto.displayName || user.name,
+          savedWorkspace.name,
+          inviteRole.name,
+          token
+        );
+      }
+    }
 
     const workspaceDto: WorkspaceDto = {
       id: savedWorkspace.id,

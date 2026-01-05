@@ -24,6 +24,7 @@ import { UsersService } from '@UsersModule/users.service';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ProfileDto } from './dto/profile.dto';
+import { SearchUsersDto } from './dto/search-users.dto';
 import { UserDto } from './dto/user.dto';
 
 @ApiTags('users')
@@ -75,6 +76,30 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Lấy danh sách thành công' })
   async getUsers(@Query() getUsersDto: GetUsersDto): Promise<ResponsePaginate<UserDto>> {
     return await this.usersService.getUsers(getUsersDto);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Tìm kiếm users theo email hoặc tên' })
+  @ApiQuery({ name: 'query', required: true, description: 'Từ khóa tìm kiếm', type: String })
+  @ApiQuery({ name: 'limit', required: false, description: 'Số lượng kết quả tối đa', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Tìm kiếm thành công',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          email: { type: 'string' },
+          name: { type: 'string' },
+          avatar: { type: 'string', nullable: true },
+        },
+      },
+    },
+  })
+  async searchUsers(@Query() searchDto: SearchUsersDto): Promise<ResponseItem<any[]>> {
+    return await this.usersService.searchUsers(searchDto);
   }
 
   @Get('me')

@@ -29,6 +29,9 @@ export class WorkspaceMemberEntity {
   @JoinColumn({ name: 'roleId' })
   role: WorkspaceRoleEntity;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  displayName?: string;
+
   @Column({ type: 'varchar', length: 50, default: 'active' })
   status: string;
 

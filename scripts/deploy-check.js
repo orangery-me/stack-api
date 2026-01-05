@@ -5,7 +5,6 @@
  * Run this before deploying to Render.com to ensure everything is configured correctly
  */
 import fs from 'fs';
-import path from 'path';
 
 console.log('🚀 Stack App API - Pre-deployment Check\n');
 

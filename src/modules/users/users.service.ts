@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { plainToClass } from 'class-transformer';
 import * as fs from 'fs';
 import { Model } from 'mongoose';
+import { Repository, IsNull, Like } from 'typeorm';
 
 import { PageMetaDto, ResponseItem, ResponsePaginate } from '@app/common/dtos';
 import { convertPath } from '@app/common/utils';
@@ -17,6 +18,7 @@ import { UserEntity } from '@app/entities';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ProfileDto } from './dto/profile.dto';
 import { UserDto } from './dto/user.dto';
+import { SearchUsersDto } from './dto/search-users.dto';
 import { avtPathName, baseImageUrl } from '@Constant/url';
 
 @Injectable()
@@ -25,7 +27,9 @@ export class UsersService {
     private readonly configService: ConfigService,
 
     @InjectRepository(UserEntity)
-    private readonly userModel: Model<UserEntity>
+    private readonly userModel: Model<UserEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>
   ) {}
 
   async create(avatar, params: CreateUserDto): Promise<ResponseItem<UserDto>> {
@@ -243,5 +247,29 @@ export class UsersService {
     }
 
     return new ResponseItem(null, 'Xóa ảnh đại diện thành công');
+  }
+
+  async searchUsers(searchDto: SearchUsersDto): Promise<ResponseItem<any[]>> {
+    const { query, limit = 10 } = searchDto;
+    const searchTerm = `%${query.toLowerCase()}%`;
+
+    const users = await this.userRepository.find({
+      where: [
+        { email: Like(searchTerm), deletedAt: IsNull() },
+        { name: Like(searchTerm), deletedAt: IsNull() },
+      ],
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
+
+    // Map to simple user objects for autocomplete (not full UserDto)
+    const userDtos = users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar || undefined,
+    }));
+
+    return new ResponseItem<UserDto[]>(userDtos, 'Tìm kiếm users thành công');
   }
 }
