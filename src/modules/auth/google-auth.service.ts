@@ -33,11 +33,7 @@ export class GoogleAuthService {
     this.oauthClient = new OAuth2Client(clientId, clientSecret, redirectUri);
   }
 
-  async verifyGoogleCode(dto: GoogleCodeDto, expectedState: string) {
-    if (dto.state !== expectedState) {
-      throw new UnauthorizedException('Invalid Oauth state');
-    }
-
+  async verifyGoogleCode(dto: GoogleCodeDto) {
     // exchange code for access token
     const { tokens } = await this.oauthClient.getToken(dto.code);
 

@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import * as cookieParser from 'cookie-parser';
 import { AppModule } from '@app/app.module';
 
 async function bootstrap() {
@@ -10,12 +9,8 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  // Enable cookie parser
-  app.use(cookieParser());
-
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN'),
-    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   });
 
@@ -57,10 +52,10 @@ async function bootstrap() {
     if (nodeEnv === 'development') {
       config.addServer(`http://localhost:${port}`, 'Development server');
     } else if (nodeEnv === 'staging') {
-      config.addServer(`https://staging-api.todovillage.com`, 'Staging server');
+      config.addServer(`https://stack.todovillage.space`, 'Staging server');
       config.addServer(`http://localhost:${port}`, 'Local development');
     } else if (nodeEnv === 'production') {
-      config.addServer(`https://api.todovillage.com`, 'Production server');
+      config.addServer(`https://stack.todovillage.space`, 'Production server');
     }
 
     const document = SwaggerModule.createDocument(app, config.build());
