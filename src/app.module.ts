@@ -11,6 +11,7 @@ import { KeepAliveModule } from './modules/keep-alive/keep-alive.module';
 import { EmailModule } from './modules/email/email.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -74,6 +75,7 @@ import * as Joi from 'joi';
 
         // App URL
         APP_URL: Joi.string().optional().default('http://localhost:8105'),
+        CLIENT_URL: Joi.string().optional().default('http://localhost:5173'),
 
         // Optional
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
@@ -84,6 +86,7 @@ import * as Joi from 'joi';
     EmailModule,
     UsersModule,
     AuthModule,
+    WorkspacesModule,
     KeepAliveModule,
   ],
   providers: [

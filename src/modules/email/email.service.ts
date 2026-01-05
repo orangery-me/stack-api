@@ -97,6 +97,25 @@ export class EmailService {
     });
   }
 
+  async sendWorkspaceInviteEmail(
+    email: string,
+    inviterName: string,
+    workspaceName: string,
+    roleName: string,
+    token: string
+  ): Promise<boolean> {
+    const clientUrl = this.configService.get<string>('CLIENT_URL');
+    const acceptUrl = `${clientUrl}/workspaces/invite/accept?token=${token}`;
+
+    const html = this.getWorkspaceInviteEmailTemplate(inviterName, workspaceName, roleName, acceptUrl);
+
+    return this.sendEmail({
+      to: email,
+      subject: `Lời mời tham gia workspace ${workspaceName} trên Stack App`,
+      html,
+    });
+  }
+
   private getVerificationEmailTemplate(name: string, verificationUrl: string): string {
     return `
       <!DOCTYPE html>
@@ -213,6 +232,60 @@ export class EmailService {
               <li>📱 Truy cập từ mọi thiết bị</li>
             </ul>
             <p>Cảm ơn bạn đã tin tưởng và sử dụng Stack App!</p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2024 Stack App. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private getWorkspaceInviteEmailTemplate(
+    inviterName: string,
+    workspaceName: string,
+    roleName: string,
+    acceptUrl: string
+  ): string {
+    const roleDisplayName = roleName === 'owner' ? 'Owner' : roleName === 'admin' ? 'Admin' : 'Member';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Lời mời tham gia workspace</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #B8A7FF; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #B8A7FF; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
+          .workspace-info { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #B8A7FF; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Stack App</h1>
+          </div>
+          <div class="content">
+            <h2>Lời mời tham gia workspace</h2>
+            <p><strong>${inviterName}</strong> đã mời bạn tham gia workspace trên Stack App.</p>
+            <div class="workspace-info">
+              <p><strong>Workspace:</strong> ${workspaceName}</p>
+              <p><strong>Vai trò:</strong> ${roleDisplayName}</p>
+            </div>
+            <p>Nhấn vào nút bên dưới để chấp nhận lời mời và tham gia workspace:</p>
+            <div style="text-align: center;">
+              <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
+            </div>
+            <p>Hoặc copy và paste đường link sau vào trình duyệt:</p>
+            <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">${acceptUrl}</p>
+            <p><strong>Lưu ý:</strong> Link này sẽ hết hạn sau 7 ngày.</p>
+            <p>Nếu bạn không muốn tham gia workspace này, vui lòng bỏ qua email này.</p>
           </div>
           <div class="footer">
             <p>&copy; 2024 Stack App. All rights reserved.</p>

@@ -25,3 +25,21 @@ export enum SortEnum {
   ASC = 'ASC',
   DESC = 'DESC',
 }
+
+export enum WorkspaceMemberStatusEnum {
+  ACTIVE = 'active',
+  INVITED = 'invited',
+  SUSPENDED = 'suspended',
+}
+
+export enum WorkspaceRoleNameEnum {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  MEMBER = 'member',
+}
+
+export enum WorkspacePlanEnum {
+  FREE = 'free',
+  PRO = 'pro',
+  ENTERPRISE = 'enterprise',
+}
