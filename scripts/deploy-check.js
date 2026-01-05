@@ -4,9 +4,8 @@
  * Pre-deployment check script for Stack App API
  * Run this before deploying to Render.com to ensure everything is configured correctly
  */
-
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 console.log('🚀 Stack App API - Pre-deployment Check\n');
 
