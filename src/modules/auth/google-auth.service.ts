@@ -24,7 +24,7 @@ export class GoogleAuthService {
   ) {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
-    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
+    const redirectUri = this.configService.get<string>('GOOGLE_CALLBACK_URL');
 
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error('Google OAuth env missing');
