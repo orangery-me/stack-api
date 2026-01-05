@@ -51,7 +51,7 @@ export class WorkspacesService {
     const duplicateWorkspace = userWorkspaces.find((w) => w.name.toLowerCase().trim() === name.toLowerCase().trim());
 
     if (duplicateWorkspace) {
-      throw new BadRequestException('Bạn đã có workspace với tên này');
+      throw new BadRequestException('You already have a workspace with this name');
     }
   }
 
@@ -65,7 +65,7 @@ export class WorkspacesService {
     });
 
     if (!user) {
-      throw new NotFoundException('User không tồn tại');
+      throw new NotFoundException('User does not exist');
     }
 
     // Generate slug automatically
@@ -89,7 +89,7 @@ export class WorkspacesService {
     }
 
     if (slugExists) {
-      throw new BadRequestException('Không thể tạo slug duy nhất cho workspace');
+      throw new BadRequestException('Unable to generate a unique slug for this workspace');
     }
 
     // Create workspace
@@ -114,7 +114,7 @@ export class WorkspacesService {
     });
 
     if (!ownerRole) {
-      throw new BadRequestException('Không thể tạo owner role');
+      throw new BadRequestException('Unable to create owner role');
     }
 
     // Create workspace member for creator (owner) with displayName
@@ -196,7 +196,7 @@ export class WorkspacesService {
       createdAt: savedWorkspace.createdAt,
     };
 
-    return new ResponseItem<WorkspaceDto>(workspaceDto, 'Tạo workspace thành công');
+    return new ResponseItem<WorkspaceDto>(workspaceDto, 'Workspace created successfully');
   }
 
   async initializeDefaultRoles(workspaceId: string): Promise<void> {
@@ -252,7 +252,7 @@ export class WorkspacesService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Workspace không tồn tại');
+      throw new NotFoundException('Workspace does not exist');
     }
 
     // Verify inviter is a member and has permission (owner or admin)
@@ -262,12 +262,12 @@ export class WorkspacesService {
     });
 
     if (!inviterMember) {
-      throw new UnauthorizedException('Bạn không phải là member của workspace này');
+      throw new UnauthorizedException('You are not a member of this workspace');
     }
 
     const inviterRole = inviterMember.role;
     if (inviterRole.name !== WorkspaceRoleNameEnum.OWNER && inviterRole.name !== WorkspaceRoleNameEnum.ADMIN) {
-      throw new UnauthorizedException('Bạn không có quyền mời thành viên');
+      throw new UnauthorizedException('You do not have permission to invite members');
     }
 
     // Verify role exists in workspace
@@ -276,7 +276,7 @@ export class WorkspacesService {
     });
 
     if (!role) {
-      throw new NotFoundException('Role không tồn tại trong workspace này');
+      throw new NotFoundException('Role does not exist in this workspace');
     }
 
     // Verify user exists
@@ -285,7 +285,7 @@ export class WorkspacesService {
     });
 
     if (!user) {
-      throw new NotFoundException('User không tồn tại trong hệ thống');
+      throw new NotFoundException('User does not exist in the system');
     }
 
     // Check if user is already a member
@@ -294,7 +294,7 @@ export class WorkspacesService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('User đã là member của workspace này');
+      throw new BadRequestException('User is already a member of this workspace');
     }
 
     // Check if there's a pending invite
@@ -307,7 +307,7 @@ export class WorkspacesService {
     });
 
     if (existingInvite && existingInvite.expiresAt > new Date()) {
-      throw new BadRequestException('Đã có lời mời đang chờ cho user này');
+      throw new BadRequestException('There is already a pending invitation for this user');
     }
 
     // Generate secure token
@@ -341,7 +341,10 @@ export class WorkspacesService {
       token
     );
 
-    return new ResponseItem<{ message: string }>({ message: 'Lời mời đã được gửi' }, 'Gửi lời mời thành công');
+    return new ResponseItem<{ message: string }>(
+      { message: 'Invitation has been sent' },
+      'Workspace invitation sent successfully'
+    );
   }
 
   async acceptInvite(token: string, userId: string): Promise<ResponseItem<{ message: string; workspaceId: string }>> {
@@ -352,17 +355,17 @@ export class WorkspacesService {
     });
 
     if (!invite) {
-      throw new NotFoundException('Token không hợp lệ');
+      throw new NotFoundException('Invitation token is invalid');
     }
 
     // Check if already accepted
     if (invite.acceptedAt) {
-      throw new BadRequestException('Lời mời đã được chấp nhận');
+      throw new BadRequestException('Invitation has already been accepted');
     }
 
     // Check if expired
     if (invite.expiresAt < new Date()) {
-      throw new BadRequestException('Lời mời đã hết hạn');
+      throw new BadRequestException('Invitation has expired');
     }
 
     // Verify user exists and matches email
@@ -371,11 +374,11 @@ export class WorkspacesService {
     });
 
     if (!user) {
-      throw new NotFoundException('User không tồn tại');
+      throw new NotFoundException('User does not exist');
     }
 
     if (user.email !== invite.email) {
-      throw new UnauthorizedException('Email không khớp với lời mời');
+      throw new UnauthorizedException('Email does not match the invitation');
     }
 
     // Check if user is already a member
@@ -384,7 +387,7 @@ export class WorkspacesService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('Bạn đã là member của workspace này');
+      throw new BadRequestException('You are already a member of this workspace');
     }
 
     // Create workspace member
@@ -402,8 +405,8 @@ export class WorkspacesService {
     await this.workspaceInviteRepository.save(invite);
 
     return new ResponseItem<{ message: string; workspaceId: string }>(
-      { message: 'Tham gia workspace thành công', workspaceId: invite.workspaceId },
-      'Chấp nhận lời mời thành công'
+      { message: 'Joined workspace successfully', workspaceId: invite.workspaceId },
+      'Workspace invitation accepted successfully'
     );
   }
 
@@ -414,7 +417,7 @@ export class WorkspacesService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Workspace không tồn tại');
+      throw new NotFoundException('Workspace does not exist');
     }
 
     // Get all members with relations
@@ -438,7 +441,7 @@ export class WorkspacesService {
       joinedAt: member.joinedAt,
     }));
 
-    return new ResponseItem<WorkspaceMemberDto[]>(memberDtos, 'Lấy danh sách members thành công');
+    return new ResponseItem<WorkspaceMemberDto[]>(memberDtos, 'Workspace members fetched successfully');
   }
 
   async getUserWorkspaces(userId: string): Promise<ResponseItem<WorkspaceDto[]>> {
@@ -462,6 +465,6 @@ export class WorkspacesService {
         createdAt: member.workspace.createdAt,
       }));
 
-    return new ResponseItem<WorkspaceDto[]>(workspaceDtos, 'Lấy danh sách workspaces thành công');
+    return new ResponseItem<WorkspaceDto[]>(workspaceDtos, 'Workspaces fetched successfully');
   }
 }

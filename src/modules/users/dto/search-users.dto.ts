@@ -4,15 +4,15 @@ import { Type } from 'class-transformer';
 
 export class SearchUsersDto {
   @ApiProperty({
-    description: 'Từ khóa tìm kiếm (email hoặc tên)',
+    description: 'Search keyword (email or name)',
     example: 'john@example.com',
   })
-  @IsNotEmpty({ message: 'Query không được để trống' })
-  @IsString({ message: 'Query phải là chuỗi' })
+  @IsNotEmpty({ message: 'Query must not be empty' })
+  @IsString({ message: 'Query must be a string' })
   query: string;
 
   @ApiPropertyOptional({
-    description: 'Số lượng kết quả tối đa',
+    description: 'Maximum number of results',
     example: 10,
     default: 10,
     minimum: 1,
@@ -20,8 +20,8 @@ export class SearchUsersDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'Limit phải là số nguyên' })
-  @Min(1, { message: 'Limit phải lớn hơn 0' })
-  @Max(50, { message: 'Limit không được vượt quá 50' })
+  @IsInt({ message: 'Limit must be an integer' })
+  @Min(1, { message: 'Limit must be greater than 0' })
+  @Max(50, { message: 'Limit must not exceed 50' })
   limit?: number = 10;
 }

@@ -37,13 +37,13 @@ export class UsersService {
       email: params.email,
       deletedAt: null,
     });
-    if (emailExisted) throw new BadRequestException('Email đã tồn tại');
+    if (emailExisted) throw new BadRequestException('Email already exists');
 
     const existPhone = await this.userModel.findOne({
       phone: params.phone,
       deletedAt: null,
     });
-    if (existPhone) throw new BadRequestException('Số điện thoại đã tồn tại');
+    if (existPhone) throw new BadRequestException('Phone number already exists');
 
     if (avatar) {
       params = { ...params, avatar: avtPathName('users', avatar.filename) };
@@ -54,13 +54,13 @@ export class UsersService {
     const user = new this.userModel(params);
     await user.save();
 
-    return new ResponseItem(user, 'Tạo mới dữ liệu thành công');
+    return new ResponseItem(user, 'User created successfully');
   }
 
   async resetPassword(id: string): Promise<ResponseItem<UserDto>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
     if (!user) {
-      throw new BadRequestException('Nhân viên không tồn tại');
+      throw new BadRequestException('Employee does not exist');
     }
     const newPassword = await bcrypt.hash(this.configService.get<string>('RESET_PASSWORD'), 10);
 
@@ -78,19 +78,19 @@ export class UsersService {
       password: this.configService.get<string>('RESET_PASSWORD'),
     };
 
-    return new ResponseItem(result, 'Đặt lại mật khẩu thành công');
+    return new ResponseItem(result, 'Password reset successfully');
   }
 
   async changePassword(id: string, data: ChangePasswordDto): Promise<ResponseItem<UserDto>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
     if (!user || !bcrypt.compareSync(data.oldPassword, user.password)) {
-      throw new BadRequestException('Mật khẩu cũ không chính xác');
+      throw new BadRequestException('Old password is incorrect');
     }
 
     const password = await bcrypt.hash(data.newPassword, 10);
     await this.userModel.updateOne({ _id: id }, { password });
 
-    return new ResponseItem(user, 'Thay đổi mật khẩu thành công');
+    return new ResponseItem(user, 'Password changed successfully');
   }
 
   async getUsers(params: GetUsersDto): Promise<ResponsePaginate<UserDto>> {
@@ -118,7 +118,7 @@ export class UsersService {
 
     const pageMetaDto = new PageMetaDto({ itemCount: total, pageOptionsDto: params });
 
-    return new ResponsePaginate(result, pageMetaDto, 'Thành công');
+    return new ResponsePaginate(result, pageMetaDto, 'Success');
   }
 
   async getUser(id: string): Promise<ResponseItem<UserDto>> {
@@ -126,11 +126,11 @@ export class UsersService {
       _id: id,
       deletedAt: null,
     });
-    if (!user) throw new BadRequestException('Nhân viên không tồn tại');
+    if (!user) throw new BadRequestException('Employee does not exist');
 
     return new ResponseItem(
       { ...user.toObject(), avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null },
-      'Thành công'
+      'Success'
     );
   }
 
@@ -149,7 +149,7 @@ export class UsersService {
   async updateProfile(id: string, updateUserDto: UpdateUserDto): Promise<ResponseItem<UserDto>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
     if (!user) {
-      throw new BadRequestException('Thông tin cá nhân không tồn tại');
+      throw new BadRequestException('Profile information does not exist');
     }
 
     const phoneExisted = await this.userModel.findOne({
@@ -158,7 +158,7 @@ export class UsersService {
       deletedAt: null,
     });
     if (phoneExisted) {
-      throw new BadRequestException('Số điện thoại đã tồn tại');
+      throw new BadRequestException('Phone number already exists');
     }
 
     await this.userModel.updateOne(
@@ -170,13 +170,13 @@ export class UsersService {
 
     const result = await this.userModel.findOne({ _id: id, deletedAt: null });
 
-    return new ResponseItem(result, 'Cập nhật dữ liệu thành công');
+    return new ResponseItem(result, 'User updated successfully');
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<ResponseItem<UserDto>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
     if (!user) {
-      throw new BadRequestException('Nhân viên không tồn tại');
+      throw new BadRequestException('Employee does not exist');
     }
 
     const emailExisted = await this.userModel.findOne({
@@ -184,7 +184,7 @@ export class UsersService {
       _id: { $ne: id },
       deletedAt: null,
     });
-    if (emailExisted) throw new BadRequestException('Email đã tồn tại');
+    if (emailExisted) throw new BadRequestException('Email already exists');
 
     const phoneExisted = await this.userModel.findOne({
       phone: updateUserDto.phone,
@@ -192,7 +192,7 @@ export class UsersService {
       deletedAt: null,
     });
     if (phoneExisted) {
-      throw new BadRequestException('Số điện thoại đã tồn tại');
+      throw new BadRequestException('Phone number already exists');
     }
 
     await this.userModel.updateOne(
@@ -204,24 +204,25 @@ export class UsersService {
 
     const result = await this.userModel.findOne({ _id: id, deletedAt: null });
 
-    return new ResponseItem(result, 'Cập nhật dữ liệu thành công');
+    return new ResponseItem(result, 'User updated successfully');
   }
 
   async deleteUser(id: string): Promise<ResponseItem<null>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
-    if (!user) throw new BadRequestException('Người dùng không tồn tại');
-    if (user.status === UserStatusEnum.ACTIVE) throw new BadRequestException('Không được xóa nhân viên đang hoạt động');
+    if (!user) throw new BadRequestException('User does not exist');
+    if (user.status === UserStatusEnum.ACTIVE)
+      throw new BadRequestException('Cannot delete an active employee');
 
     await this.userModel.updateOne({ _id: id }, { deletedAt: new Date() });
 
-    return new ResponseItem(null, 'Xóa nhân viên thành công');
+    return new ResponseItem(null, 'Employee deleted successfully');
   }
 
   async uploadAvatar(id: string, file: Express.Multer.File): Promise<ResponseItem<any>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
 
     if (!user) {
-      throw new BadRequestException('Nhân viên không tồn tại');
+      throw new BadRequestException('Employee does not exist');
     }
 
     await this.userModel.updateOne({ _id: id }, { avatar: avtPathName('users', file.filename) });
@@ -230,14 +231,14 @@ export class UsersService {
       fs.unlinkSync(user.avatar);
     }
 
-    return new ResponseItem(null, 'Cập nhật thông tin thành công');
+    return new ResponseItem(null, 'Avatar updated successfully');
   }
 
   async removeAvatar(id: string): Promise<ResponseItem<any>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
 
     if (!user) {
-      throw new BadRequestException('Nhân viên không tồn tại');
+      throw new BadRequestException('Employee does not exist');
     }
 
     await this.userModel.updateOne({ _id: id }, { avatar: null });
@@ -246,7 +247,7 @@ export class UsersService {
       fs.unlinkSync(user.avatar);
     }
 
-    return new ResponseItem(null, 'Xóa ảnh đại diện thành công');
+    return new ResponseItem(null, 'Avatar removed successfully');
   }
 
   async searchUsers(searchDto: SearchUsersDto): Promise<ResponseItem<any[]>> {
@@ -270,6 +271,6 @@ export class UsersService {
       avatar: user.avatar || undefined,
     }));
 
-    return new ResponseItem<UserDto[]>(userDtos, 'Tìm kiếm users thành công');
+    return new ResponseItem<UserDto[]>(userDtos, 'Users searched successfully');
   }
 }

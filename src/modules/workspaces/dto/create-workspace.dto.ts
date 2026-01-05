@@ -6,39 +6,39 @@ import { InviteItemDto } from './invite-item.dto';
 
 export class CreateWorkspaceDto {
   @ApiProperty({
-    description: 'Tên workspace',
+    description: 'Workspace name',
     example: 'My Workspace',
     minLength: 2,
     maxLength: 255,
   })
-  @IsNotEmpty({ message: 'Tên workspace không được để trống' })
-  @IsString({ message: 'Tên workspace phải là chuỗi' })
-  @Length(2, 255, { message: 'Tên workspace phải từ 2 đến 255 ký tự' })
+  @IsNotEmpty({ message: 'Workspace name must not be empty' })
+  @IsString({ message: 'Workspace name must be a string' })
+  @Length(2, 255, { message: 'Workspace name must be between 2 and 255 characters' })
   name: string;
 
   @ApiProperty({
-    description: 'Tên hiển thị của bạn trong workspace này',
+    description: 'Your display name in this workspace',
     example: 'John Doe',
     minLength: 2,
     maxLength: 50,
   })
-  @IsNotEmpty({ message: 'Tên hiển thị không được để trống' })
-  @IsString({ message: 'Tên hiển thị phải là chuỗi' })
-  @Length(2, 50, { message: 'Tên hiển thị phải từ 2 đến 50 ký tự' })
+  @IsNotEmpty({ message: 'Display name must not be empty' })
+  @IsString({ message: 'Display name must be a string' })
+  @Length(2, 50, { message: 'Display name must be between 2 and 50 characters' })
   displayName: string;
 
   @ApiPropertyOptional({
-    description: 'Danh sách người được mời vào workspace',
+    description: 'List of users to invite to the workspace',
     type: [InviteItemDto],
   })
   @IsOptional()
-  @IsArray({ message: 'Invites phải là một mảng' })
+  @IsArray({ message: 'Invites must be an array' })
   @ValidateNested({ each: true })
   @Type(() => InviteItemDto)
   invites?: InviteItemDto[];
 
   @ApiPropertyOptional({
-    description: 'Gói dịch vụ',
+    description: 'Workspace plan',
     enum: WorkspacePlanEnum,
     example: WorkspacePlanEnum.FREE,
     default: WorkspacePlanEnum.FREE,

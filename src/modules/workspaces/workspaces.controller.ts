@@ -1,5 +1,5 @@
 import { ResponseItem } from '@app/common/dtos';
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { WorkspacesService } from './workspaces.service';
@@ -17,15 +17,15 @@ export class WorkspacesController {
   @UseGuards(JwtAccessTokenGuard)
   @Post()
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Tạo workspace mới' })
+  @ApiOperation({ summary: 'Create a new workspace' })
   @ApiBody({ type: CreateWorkspaceDto })
   @ApiResponse({
     status: 201,
-    description: 'Tạo workspace thành công',
+    description: 'Workspace created successfully',
     type: WorkspaceDto,
   })
-  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
-  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 400, description: 'Invalid data' })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
   async createWorkspace(@Req() request, @Body() createDto: CreateWorkspaceDto): Promise<ResponseItem<WorkspaceDto>> {
     return this.workspacesService.createWorkspace(request.user.userId, createDto);
   }
@@ -33,16 +33,16 @@ export class WorkspacesController {
   @UseGuards(JwtAccessTokenGuard)
   @Post(':id/invite')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Gửi lời mời thành viên vào workspace' })
-  @ApiParam({ name: 'id', description: 'ID của workspace' })
+  @ApiOperation({ summary: 'Send an invitation to a workspace member' })
+  @ApiParam({ name: 'id', description: 'Workspace ID' })
   @ApiBody({ type: InviteMemberDto })
   @ApiResponse({
     status: 200,
-    description: 'Gửi lời mời thành công',
+    description: 'Invitation sent successfully',
   })
-  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
-  @ApiResponse({ status: 401, description: 'Chưa đăng nhập hoặc không có quyền' })
-  @ApiResponse({ status: 404, description: 'Workspace hoặc user không tồn tại' })
+  @ApiResponse({ status: 400, description: 'Invalid data' })
+  @ApiResponse({ status: 401, description: 'Not authenticated or not authorized' })
+  @ApiResponse({ status: 404, description: 'Workspace or user not found' })
   async inviteMember(
     @Req() request,
     @Param('id') workspaceId: string,
@@ -54,15 +54,15 @@ export class WorkspacesController {
   @UseGuards(JwtAccessTokenGuard)
   @Post('invite/accept')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Chấp nhận lời mời tham gia workspace' })
+  @ApiOperation({ summary: 'Accept workspace invitation' })
   @ApiBody({ type: AcceptInviteDto })
   @ApiResponse({
     status: 200,
-    description: 'Chấp nhận lời mời thành công',
+    description: 'Invitation accepted successfully',
   })
-  @ApiResponse({ status: 400, description: 'Token không hợp lệ hoặc đã hết hạn' })
-  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
-  @ApiResponse({ status: 404, description: 'Token không tồn tại' })
+  @ApiResponse({ status: 400, description: 'Token is invalid or has expired' })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
+  @ApiResponse({ status: 404, description: 'Token not found' })
   async acceptInvite(
     @Req() request,
     @Body() acceptDto: AcceptInviteDto
@@ -70,28 +70,31 @@ export class WorkspacesController {
     return this.workspacesService.acceptInvite(acceptDto.token, request.user.userId);
   }
 
-  @Get('invite/accept')
-  @ApiOperation({ summary: 'Chấp nhận lời mời tham gia workspace qua URL (GET)' })
+  @UseGuards(JwtAccessTokenGuard)
+  @Post('invite/accept')
+  @ApiOperation({ summary: 'Accept workspace invitation' })
+  @ApiBearerAuth('JWT-auth')
   @ApiResponse({
     status: 400,
-    description: 'Vui lòng đăng nhập và sử dụng POST endpoint',
+    description: 'Please log in and use the POST endpoint',
   })
-  async acceptInviteByUrl(@Query('token') token: string): Promise<void> {
-    // This endpoint requires authentication
-    // Frontend should handle login and then call POST /workspaces/invite/accept
-    throw new BadRequestException('Vui lòng đăng nhập và sử dụng POST /workspaces/invite/accept với token trong body');
+  async acceptInviteByUrl(
+    @Req() request,
+    @Body('token') token: string
+  ): Promise<ResponseItem<{ message: string; workspaceId: string }>> {
+    return this.workspacesService.acceptInvite(token, request.user.userId);
   }
 
   @UseGuards(JwtAccessTokenGuard)
   @Get('me')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Lấy danh sách workspaces của user hiện tại' })
+  @ApiOperation({ summary: 'Get list of workspaces of the current user' })
   @ApiResponse({
     status: 200,
-    description: 'Lấy danh sách workspaces thành công',
+    description: 'Workspaces fetched successfully',
     type: [WorkspaceDto],
   })
-  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
   async getUserWorkspaces(@Req() request): Promise<ResponseItem<WorkspaceDto[]>> {
     return this.workspacesService.getUserWorkspaces(request.user.userId);
   }
@@ -99,15 +102,15 @@ export class WorkspacesController {
   @UseGuards(JwtAccessTokenGuard)
   @Get(':id/members')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Lấy danh sách members trong workspace' })
-  @ApiParam({ name: 'id', description: 'ID của workspace' })
+  @ApiOperation({ summary: 'Get members of a workspace' })
+  @ApiParam({ name: 'id', description: 'Workspace ID' })
   @ApiResponse({
     status: 200,
-    description: 'Lấy danh sách members thành công',
+    description: 'Workspace members fetched successfully',
     type: [WorkspaceMemberDto],
   })
-  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
-  @ApiResponse({ status: 404, description: 'Workspace không tồn tại' })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
   async getWorkspaceMembers(@Param('id') workspaceId: string): Promise<ResponseItem<WorkspaceMemberDto[]>> {
     return this.workspacesService.getWorkspaceMembers(workspaceId);
   }

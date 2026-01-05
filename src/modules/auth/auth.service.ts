@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { Repository, IsNull, MoreThan } from 'typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { UserEntity } from '@app/entities';
 import { CredentialsDto } from './dto/credentials.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -22,13 +21,12 @@ export class AuthService {
   constructor(
     private readonly jwtTokenService: JwtTokenService,
     private readonly emailService: EmailService,
-    private readonly i18n: I18nService,
     private readonly configService: ConfigService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>
   ) {}
 
-  async validateUser(credentialsDto: CredentialsDto, lang = 'vi'): Promise<UserPayloadDto> {
+  async validateUser(credentialsDto: CredentialsDto): Promise<UserPayloadDto> {
     const user = await this.userRepository.findOne({
       where: {
         email: credentialsDto.email,
@@ -37,27 +35,27 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.login.invalid_credentials', { lang }));
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     // Check if account is blocked
     if (user.status === UserStatusEnum.BLOCKED) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.login.account_blocked', { lang }));
+      throw new UnauthorizedException('Your account has been blocked. Please contact support.');
     }
 
     // Check if account is inactive
     if (user.status === UserStatusEnum.INACTIVE) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.login.account_inactive', { lang }));
+      throw new UnauthorizedException('Your account is inactive. Please contact support.');
     }
 
     // Check email verification
     if (!user.emailVerified) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.login.email_not_verified', { lang }));
+      throw new UnauthorizedException('Please verify your email before signing in.');
     }
 
     const comparePassword = await bcrypt.compareSync(credentialsDto.password, user.password);
     if (!comparePassword) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.login.invalid_credentials', { lang }));
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     return {
@@ -67,38 +65,38 @@ export class AuthService {
     };
   }
 
-  async login(userPayloadDto: UserPayloadDto, lang = 'vi'): Promise<ResponseItem<TokenDto>> {
+  async login(userPayloadDto: UserPayloadDto): Promise<ResponseItem<TokenDto>> {
     // Find the full user document
     const user = await this.userRepository.findOne({
       where: { id: userPayloadDto.id },
     });
     if (!user) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.token.user_not_found', { lang }));
+      throw new UnauthorizedException('User not found');
     }
 
     // Generate tokens using JWT service
     const tokenData = await this.jwtTokenService.generateTokenResponse(user);
 
-    return new ResponseItem(tokenData, await this.i18n.translate('auth.login.success', { lang }));
+    return new ResponseItem(tokenData, 'Login successful');
   }
 
-  async logout(userId: string, lang = 'vi'): Promise<ResponseItem<string>> {
+  async logout(userId: string): Promise<ResponseItem<string>> {
     try {
       await this.jwtTokenService.revokeAllTokens(userId);
-      return new ResponseItem('', await this.i18n.translate('auth.logout.success', { lang }));
+      return new ResponseItem('', 'Logout successful');
     } catch (error) {
-      throw new BadRequestException(await this.i18n.translate('auth.logout.failed', { lang }));
+      throw new BadRequestException('Logout failed');
     }
   }
 
-  async refreshToken(token: string, lang = 'vi'): Promise<ResponseItem<{ accessToken: string }>> {
+  async refreshToken(token: string): Promise<ResponseItem<{ accessToken: string }>> {
     const result = await this.jwtTokenService.refreshAccessToken(token);
 
     if (!result) {
-      throw new UnauthorizedException(await this.i18n.translate('auth.token.invalid_refresh', { lang }));
+      throw new UnauthorizedException('Refresh token is invalid');
     }
 
-    return new ResponseItem(result, await this.i18n.translate('auth.token.refresh_success', { lang }));
+    return new ResponseItem(result, 'Access token refreshed successfully');
   }
 
   async register(registerDto: RegisterDto): Promise<ResponseItem<{ message: string; email: string }>> {
@@ -111,7 +109,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new BadRequestException('Email đã được sử dụng');
+      throw new BadRequestException('Email is already in use');
     }
 
     // Check if phone already exists
@@ -123,7 +121,7 @@ export class AuthService {
     });
 
     if (existingPhone) {
-      throw new BadRequestException('Số điện thoại đã được sử dụng');
+      throw new BadRequestException('Phone number is already in use');
     }
 
     // Generate email verification token
@@ -152,10 +150,10 @@ export class AuthService {
 
     return new ResponseItem(
       {
-        message: 'Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.',
+        message: 'Registration successful. Please check your email to verify your account.',
         email: user.email,
       },
-      'Đăng ký thành công'
+      'Registration successful'
     );
   }
 
@@ -169,11 +167,11 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Token xác thực không hợp lệ hoặc đã hết hạn');
+      throw new BadRequestException('Verification token is invalid or has expired');
     }
 
     if (user.emailVerified) {
-      throw new BadRequestException('Email đã được xác thực trước đó');
+      throw new BadRequestException('Email has already been verified');
     }
 
     // Update user verification status
@@ -187,8 +185,8 @@ export class AuthService {
     await this.emailService.sendWelcomeEmail(user.email, user.name);
 
     return new ResponseItem(
-      { message: 'Xác thực email thành công. Bạn có thể đăng nhập ngay bây giờ.' },
-      'Xác thực thành công'
+      { message: 'Email verified successfully. You can sign in now.' },
+      'Email verification successful'
     );
   }
 
@@ -201,11 +199,11 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Không tìm thấy tài khoản với email này');
+      throw new BadRequestException('No account found with this email');
     }
 
     if (user.emailVerified) {
-      throw new BadRequestException('Email đã được xác thực');
+      throw new BadRequestException('Email has already been verified');
     }
 
     // Generate new verification token
@@ -220,12 +218,12 @@ export class AuthService {
     const emailSent = await this.emailService.sendVerificationEmail(user.email, user.name, verificationToken);
 
     if (!emailSent) {
-      throw new BadRequestException('Không thể gửi email xác thực. Vui lòng thử lại sau.');
+      throw new BadRequestException('Unable to send verification email. Please try again later.');
     }
 
     return new ResponseItem(
-      { message: 'Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư.' },
-      'Gửi email thành công'
+      { message: 'Verification email has been resent. Please check your inbox.' },
+      'Verification email resent successfully'
     );
   }
 }

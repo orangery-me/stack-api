@@ -3,19 +3,19 @@ import { IsEmail, IsNotEmpty, IsUUID } from 'class-validator';
 
 export class InviteMemberDto {
   @ApiProperty({
-    description: 'Email của người được mời',
+    description: 'Email of the invited user',
     example: 'user@example.com',
     format: 'email',
   })
-  @IsNotEmpty({ message: 'Email không được để trống' })
-  @IsEmail({}, { message: 'Email không hợp lệ' })
+  @IsNotEmpty({ message: 'Email must not be empty' })
+  @IsEmail({}, { message: 'Email must be a valid email address' })
   email: string;
 
   @ApiProperty({
-    description: 'ID của role trong workspace',
+    description: 'Role ID in the workspace',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
-  @IsNotEmpty({ message: 'Role ID không được để trống' })
-  @IsUUID('4', { message: 'Role ID phải là UUID hợp lệ' })
+  @IsNotEmpty({ message: 'Role ID must not be empty' })
+  @IsUUID('4', { message: 'Role ID must be a valid UUID' })
   roleId: string;
 }
