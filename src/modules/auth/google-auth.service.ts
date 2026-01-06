@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { GoogleCodeDto } from './dto/google-code.dto';
 import { ResponseItem } from '@app/common/dtos/response-item.dto';
 import { TokenDto } from './dto/token.dto';
-import { UserEntity } from '@app/entities/user.entity';
+import { UserEntity } from '@app/entities/user/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { JwtTokenService } from './services/jwt.service';

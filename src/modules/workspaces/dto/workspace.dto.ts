@@ -31,7 +31,7 @@ export class WorkspaceDto {
     enum: WorkspacePlanEnum,
     example: WorkspacePlanEnum.FREE,
   })
-  plan: WorkspacePlanEnum;
+  plan?: WorkspacePlanEnum;
 
   @ApiPropertyOptional({
     description: 'Settings của workspace',

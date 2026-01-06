@@ -100,6 +100,22 @@ export class WorkspacesController {
   }
 
   @UseGuards(JwtAccessTokenGuard)
+  @Get(':id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get workspace details by ID' })
+  @ApiParam({ name: 'id', description: 'Workspace ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Workspace details fetched successfully',
+    type: WorkspaceDto,
+  })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
+  async getWorkspaceById(@Req() request, @Param('id') workspaceId: string): Promise<ResponseItem<WorkspaceDto>> {
+    return this.workspacesService.getWorkspaceById(workspaceId, request.user.userId);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
   @Get(':id/members')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get members of a workspace' })

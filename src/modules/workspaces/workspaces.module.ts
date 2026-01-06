@@ -10,6 +10,8 @@ import {
 import { EmailModule } from '../email/email.module';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
+import { WorkspacePolicy } from '../../policy/workspace.policy';
+import { PermissionService } from '../../policy/permission.service';
 
 @Module({
   imports: [
@@ -23,7 +25,7 @@ import { WorkspacesController } from './workspaces.controller';
     EmailModule,
   ],
   controllers: [WorkspacesController],
-  providers: [WorkspacesService],
+  providers: [WorkspacesService, WorkspacePolicy, PermissionService],
   exports: [WorkspacesService],
 })
 export class WorkspacesModule {}

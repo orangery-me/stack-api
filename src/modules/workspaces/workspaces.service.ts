@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import * as crypto from 'crypto';
@@ -7,6 +13,9 @@ import { UserEntity } from '@app/entities';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity, WorkspaceInviteEntity } from '@app/entities';
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum } from '@Constant/enums';
 import { EmailService } from '../email/email.service';
+import { WorkspacePolicy } from '../../policy/workspace.policy';
+import { DEFAULT_WORKSPACE_ROLES } from '../../policy/workspace-roles.config';
+import { WorkspacePermissions } from '../../policy/permission.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { WorkspaceDto } from './dto/workspace.dto';
@@ -25,7 +34,8 @@ export class WorkspacesService {
     private readonly workspaceInviteRepository: Repository<WorkspaceInviteEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    private readonly workspacePolicy: WorkspacePolicy
   ) {}
 
   private generateSlug(name: string): string {
@@ -200,38 +210,7 @@ export class WorkspacesService {
   }
 
   async initializeDefaultRoles(workspaceId: string): Promise<void> {
-    const defaultRoles = [
-      {
-        name: WorkspaceRoleNameEnum.OWNER,
-        permissions: {
-          'workspace:*': true,
-          'member:*': true,
-          'channel:*': true,
-          'message:*': true,
-        },
-      },
-      {
-        name: WorkspaceRoleNameEnum.ADMIN,
-        permissions: {
-          'workspace:view': true,
-          'member:*': true,
-          'channel:*': true,
-          'message:*': true,
-        },
-      },
-      {
-        name: WorkspaceRoleNameEnum.MEMBER,
-        permissions: {
-          'workspace:view': true,
-          'channel:view': true,
-          'channel:join': true,
-          'message:create': true,
-          'message:view': true,
-        },
-      },
-    ];
-
-    for (const roleData of defaultRoles) {
+    for (const roleData of DEFAULT_WORKSPACE_ROLES) {
       const role = this.workspaceRoleRepository.create({
         workspaceId,
         name: roleData.name,
@@ -408,6 +387,33 @@ export class WorkspacesService {
       { message: 'Joined workspace successfully', workspaceId: invite.workspaceId },
       'Workspace invitation accepted successfully'
     );
+  }
+
+  async getWorkspaceById(workspaceId: string, userId: string): Promise<ResponseItem<WorkspaceDto>> {
+    const membership = await this.workspaceMemberRepository.findOne({
+      where: {
+        workspaceId,
+        userId,
+      },
+      relations: ['workspace', 'role'],
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    const { workspace, role } = membership;
+
+    let normalizedPermissions: WorkspacePermissions | null = null;
+    if (role?.permissions) {
+      if (role.permissions.actions && typeof role.permissions.actions === 'object') {
+        normalizedPermissions = role.permissions as WorkspacePermissions;
+      }
+    }
+
+    const dto = this.workspacePolicy.map(workspace, normalizedPermissions);
+
+    return new ResponseItem<WorkspaceDto>(dto, 'Workspace fetched successfully');
   }
 
   async getWorkspaceMembers(workspaceId: string): Promise<ResponseItem<WorkspaceMemberDto[]>> {

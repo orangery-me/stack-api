@@ -210,8 +210,7 @@ export class UsersService {
   async deleteUser(id: string): Promise<ResponseItem<null>> {
     const user = await this.userModel.findOne({ _id: id, deletedAt: null });
     if (!user) throw new BadRequestException('User does not exist');
-    if (user.status === UserStatusEnum.ACTIVE)
-      throw new BadRequestException('Cannot delete an active employee');
+    if (user.status === UserStatusEnum.ACTIVE) throw new BadRequestException('Cannot delete an active employee');
 
     await this.userModel.updateOne({ _id: id }, { deletedAt: new Date() });
 
@@ -271,6 +270,6 @@ export class UsersService {
       avatar: user.avatar || undefined,
     }));
 
-    return new ResponseItem<UserDto[]>(userDtos, 'Users searched successfully');
+    return new ResponseItem<any[]>(userDtos, 'Users searched successfully');
   }
 }

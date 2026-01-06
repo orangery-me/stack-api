@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { UserEntity } from './user.entity';
+import { UserEntity } from '../user/user.entity';
 import { WorkspaceEntity } from './workspace.entity';
 import { WorkspaceRoleEntity } from './workspace-role.entity';
 
