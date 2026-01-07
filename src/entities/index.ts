@@ -4,3 +4,6 @@ export * from './workspace/workspace.entity';
 export * from './workspace/workspace-role.entity';
 export * from './workspace/workspace-member.entity';
 export * from './workspace/workspace-invite.entity';
+export * from './channel/channel.entity';
+export * from './channel/channel-member.entity';
+export * from './channel/channel-role.entity';

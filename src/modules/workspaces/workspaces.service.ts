@@ -13,6 +13,8 @@ import { UserEntity } from '@app/entities';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity, WorkspaceInviteEntity } from '@app/entities';
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum } from '@Constant/enums';
 import { EmailService } from '../email/email.service';
+import { ChannelsService } from '../channels/channels.service';
+import { ChannelType } from '../channels/dto/create-channel.dto';
 import { WorkspacePolicy } from '../../policy/workspace.policy';
 import { DEFAULT_WORKSPACE_ROLES } from '../../policy/workspace-roles.config';
 import { WorkspacePermissions } from '../../policy/permission.service';
@@ -35,7 +37,8 @@ export class WorkspacesService {
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     private readonly emailService: EmailService,
-    private readonly workspacePolicy: WorkspacePolicy
+    private readonly workspacePolicy: WorkspacePolicy,
+    private readonly channelsService: ChannelsService
   ) {}
 
   private generateSlug(name: string): string {
@@ -108,6 +111,7 @@ export class WorkspacesService {
       slug,
       ownerId: userId,
       plan: createDto.plan || WorkspacePlanEnum.FREE,
+      settings: {},
     });
 
     const savedWorkspace = await this.workspaceRepository.save(workspace);
@@ -137,6 +141,14 @@ export class WorkspacesService {
     });
 
     await this.workspaceMemberRepository.save(workspaceMember);
+
+    // Create default main channel (public) and add all current members (initially just owner)
+    await this.channelsService.createChannel(savedWorkspace.id, userId, {
+      type: ChannelType.PUBLIC,
+      name: 'main-channel',
+      metadata: {},
+      settings: {},
+    });
 
     // Process invites if provided
     if (createDto.invites && createDto.invites.length > 0) {
@@ -379,6 +391,9 @@ export class WorkspacesService {
 
     await this.workspaceMemberRepository.save(workspaceMember);
 
+    // Auto-add new member to all public channels in the workspace
+    await this.channelsService.addMemberToAllPublicChannels(invite.workspaceId, workspaceMember.id);
+
     // Update invite as accepted
     invite.acceptedAt = new Date();
     await this.workspaceInviteRepository.save(invite);
@@ -410,6 +425,8 @@ export class WorkspacesService {
         normalizedPermissions = role.permissions as WorkspacePermissions;
       }
     }
+
+    console.log('workspace: ', workspace);
 
     const dto = this.workspacePolicy.map(workspace, normalizedPermissions);
 

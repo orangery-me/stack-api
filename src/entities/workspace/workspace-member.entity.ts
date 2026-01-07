@@ -1,7 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { UserEntity } from '../user/user.entity';
 import { WorkspaceEntity } from './workspace.entity';
 import { WorkspaceRoleEntity } from './workspace-role.entity';
+import { ChannelMemberEntity } from '../channel/channel-member.entity';
 
 @Entity('workspace_members')
 export class WorkspaceMemberEntity {
@@ -37,4 +38,7 @@ export class WorkspaceMemberEntity {
 
   @CreateDateColumn()
   joinedAt: Date;
+
+  @OneToMany(() => ChannelMemberEntity, (channelMember) => channelMember.member)
+  channelMembers: ChannelMemberEntity[];
 }

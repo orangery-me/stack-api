@@ -5,6 +5,11 @@ export interface WorkspacePermissions {
   dataScopes?: Record<string, string[]>;
 }
 
+export interface ChannelPermissions {
+  actions: Record<string, boolean>;
+  dataScopes?: Record<string, string[]>;
+}
+
 @Injectable()
 export class PermissionService {
   hasAction(permissions: WorkspacePermissions, action: string): boolean {

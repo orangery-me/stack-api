@@ -2,6 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, Jo
 import { UserEntity } from '../user/user.entity';
 import { WorkspaceRoleEntity } from './workspace-role.entity';
 import { WorkspaceMemberEntity } from './workspace-member.entity';
+import { ChannelEntity } from '../channel/channel.entity';
 
 @Entity('workspaces')
 export class WorkspaceEntity {
@@ -35,4 +36,7 @@ export class WorkspaceEntity {
 
   @OneToMany(() => WorkspaceMemberEntity, (member) => member.workspace)
   members: WorkspaceMemberEntity[];
+
+  @OneToMany(() => ChannelEntity, (channel) => channel.workspace)
+  channels: ChannelEntity[];
 }

@@ -8,6 +8,7 @@ import {
   UserEntity,
 } from '@app/entities';
 import { EmailModule } from '../email/email.module';
+import { ChannelsModule } from '../channels/channels.module';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { WorkspacePolicy } from '../../policy/workspace.policy';
@@ -23,6 +24,7 @@ import { PermissionService } from '../../policy/permission.service';
       UserEntity,
     ]),
     EmailModule,
+    ChannelsModule,
   ],
   controllers: [WorkspacesController],
   providers: [WorkspacesService, WorkspacePolicy, PermissionService],
