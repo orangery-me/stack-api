@@ -35,6 +35,9 @@ export class ChannelEntity {
   @Column({ type: 'jsonb', nullable: true })
   settings?: Record<string, any>;
 
+  @Column({ type: 'boolean', default: false })
+  isDefault: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

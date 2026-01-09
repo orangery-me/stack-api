@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export enum ChannelType {
   PUBLIC = 'public',
@@ -26,4 +26,9 @@ export class CreateChannelDto {
   @ApiProperty({ required: false, type: 'object' })
   @IsOptional()
   settings?: Record<string, any>;
+
+  @ApiProperty({ required: false, description: 'Whether this is the default channel for the workspace', default: false })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
 }

@@ -17,7 +17,7 @@ export const DEFAULT_WORKSPACE_ROLES: WorkspaceRoleConfig[] = [
         'message:*': true,
       },
       dataScopes: {
-        workspace: ['settings', 'plan'],
+        workspace: ['basic', 'settings', 'plan'],
       },
     },
   },
@@ -31,7 +31,7 @@ export const DEFAULT_WORKSPACE_ROLES: WorkspaceRoleConfig[] = [
         'message:*': true,
       },
       dataScopes: {
-        workspace: ['settings', 'plan'],
+        workspace: ['basic', 'settings', 'plan'],
       },
     },
   },
@@ -46,7 +46,7 @@ export const DEFAULT_WORKSPACE_ROLES: WorkspaceRoleConfig[] = [
         'message:view': true,
       },
       dataScopes: {
-        workspace: ['plan'],
+        workspace: ['basic', 'plan'],
       },
     },
   },

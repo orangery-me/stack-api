@@ -1,11 +1,26 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResponseItem } from '@app/common/dtos';
-import { ChannelEntity, ChannelMemberEntity, WorkspaceEntity, WorkspaceMemberEntity } from '@app/entities';
-import { WorkspaceMemberStatusEnum } from '@Constant/enums';
+import {
+  ChannelEntity,
+  ChannelMemberEntity,
+  ChannelRoleEntity,
+  WorkspaceEntity,
+  WorkspaceMemberEntity,
+  WorkspaceRoleEntity,
+} from '@app/entities';
+import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum } from '@Constant/enums';
 import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
+import { ChannelPolicy } from '../../policy/channel.policy';
+import { PermissionService, ChannelPermissions } from '../../policy/permission.service';
+import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel-roles.config';
 
 @Injectable()
 export class ChannelsService {
@@ -14,10 +29,16 @@ export class ChannelsService {
     private readonly channelRepository: Repository<ChannelEntity>,
     @InjectRepository(ChannelMemberEntity)
     private readonly channelMemberRepository: Repository<ChannelMemberEntity>,
+    @InjectRepository(ChannelRoleEntity)
+    private readonly channelRoleRepository: Repository<ChannelRoleEntity>,
     @InjectRepository(WorkspaceEntity)
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
     @InjectRepository(WorkspaceMemberEntity)
-    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>
+    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
+    @InjectRepository(WorkspaceRoleEntity)
+    private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
+    private readonly channelPolicy: ChannelPolicy,
+    private readonly permissionService: PermissionService
   ) {}
 
   async createChannel(
@@ -45,6 +66,7 @@ export class ChannelsService {
       createdById: creatorMember.id,
       metadata: dto.metadata ?? {},
       settings: dto.settings ?? {},
+      isDefault: dto.isDefault ?? false,
     });
 
     const savedChannel = await this.channelRepository.save(channel);
@@ -66,6 +88,7 @@ export class ChannelsService {
       name: savedChannel.name,
       createdById: savedChannel.createdById,
       createdAt: savedChannel.createdAt,
+      isDefault: savedChannel.isDefault,
     };
 
     return new ResponseItem<ChannelDto>(channelDto, 'Channel created successfully');
@@ -132,5 +155,172 @@ export class ChannelsService {
     });
 
     await this.channelMemberRepository.save(channelMember);
+  }
+
+  async getAllChannels(workspaceId: string, userId: string): Promise<ResponseItem<ChannelDto[]>> {
+    // Verify workspace exists
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace does not exist');
+    }
+
+    // Verify user is a member and has admin/owner role
+    const membership = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['role'],
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    const role = membership.role;
+    if (role.name !== WorkspaceRoleNameEnum.OWNER && role.name !== WorkspaceRoleNameEnum.ADMIN) {
+      throw new ForbiddenException('You do not have permission to view all channels');
+    }
+
+    // Get all channels in workspace
+    const channels = await this.channelRepository.find({
+      where: { workspaceId },
+      order: { createdAt: 'ASC' },
+    });
+
+    // Map to DTOs (admin can see all fields)
+    const channelDtos: ChannelDto[] = channels.map((channel) => ({
+      id: channel.id,
+      workspaceId: channel.workspaceId,
+      type: channel.type as ChannelType,
+      name: channel.name,
+      createdById: channel.createdById,
+      createdAt: channel.createdAt,
+      metadata: channel.metadata || {},
+      settings: channel.settings || {},
+      isDefault: channel.isDefault,
+    }));
+
+    return new ResponseItem<ChannelDto[]>(channelDtos, 'Channels fetched successfully');
+  }
+
+  async getUserChannels(workspaceId: string, userId: string): Promise<ResponseItem<ChannelDto[]>> {
+    // Verify workspace exists
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace does not exist');
+    }
+
+    // Verify user is a workspace member
+    const workspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId, status: WorkspaceMemberStatusEnum.ACTIVE },
+    });
+
+    if (!workspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    // Get channels where user is a member
+    const channelMembers = await this.channelMemberRepository.find({
+      where: { memberId: workspaceMember.id },
+      relations: ['channel'],
+    });
+
+    const channels = channelMembers
+      .map((cm) => cm.channel)
+      .filter((channel) => channel !== null && channel.workspaceId === workspaceId);
+
+    // Map to DTOs with basic info only (user's channels)
+    const channelDtos: ChannelDto[] = channels.map((channel) => ({
+      id: channel.id,
+      workspaceId: channel.workspaceId,
+      type: channel.type as ChannelType,
+      name: channel.name,
+      createdById: channel.createdById,
+      createdAt: channel.createdAt,
+      isDefault: channel.isDefault,
+    }));
+
+    return new ResponseItem<ChannelDto[]>(channelDtos, 'User channels fetched successfully');
+  }
+
+  async getChannelById(
+    workspaceId: string,
+    channelId: string,
+    userId: string
+  ): Promise<ResponseItem<ChannelDto>> {
+    // Verify workspace membership
+    const workspaceMember = await this.workspaceMemberRepository.findOne({
+      where: {
+        workspaceId,
+        userId,
+        status: WorkspaceMemberStatusEnum.ACTIVE,
+      },
+      relations: ['role'],
+    });
+
+    if (!workspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    // Get channel
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+      relations: ['roles'],
+    });
+
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    // Get user's channel membership
+    const channelMember = await this.channelMemberRepository.findOne({
+      where: {
+        channelId: channel.id,
+        memberId: workspaceMember.id,
+      },
+    });
+
+    if (!channelMember) {
+      throw new ForbiddenException('You are not a member of this channel');
+    }
+
+    // Get channel role permissions based on memberRole
+    const channelRole = await this.channelRoleRepository.findOne({
+      where: {
+        channelId: channel.id,
+        name: channelMember.memberRole as 'manager' | 'member',
+      },
+    });
+
+    let normalizedPermissions: ChannelPermissions | null = null;
+    if (channelRole?.permissions) {
+      if (channelRole.permissions.actions && typeof channelRole.permissions.actions === 'object') {
+        normalizedPermissions = channelRole.permissions as ChannelPermissions;
+      }
+    }
+
+    // Map channel data based on permissions
+    const dto = this.channelPolicy.map(channel, normalizedPermissions);
+
+    if (!dto) {
+      throw new ForbiddenException('You do not have permission to view this channel');
+    }
+
+    return new ResponseItem<ChannelDto>(dto, 'Channel fetched successfully');
+  }
+
+  async initializeChannelRoles(channelId: string): Promise<void> {
+    for (const roleData of DEFAULT_CHANNEL_ROLES) {
+      const role = this.channelRoleRepository.create({
+        channelId,
+        name: roleData.name,
+        permissions: roleData.permissions,
+      });
+      await this.channelRoleRepository.save(role);
+    }
   }
 }

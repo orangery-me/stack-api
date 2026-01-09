@@ -10,17 +10,19 @@ export class WorkspacePolicy {
 
   map(workspace: WorkspaceEntity, permissions: WorkspacePermissions | null | undefined): WorkspaceDto | null {
     let dto: WorkspaceDto | null = null;
+    console.log('permissions: ', permissions);
+    if (!permissions || !permissions.actions || !permissions.dataScopes) {
+      return null;
+    }
 
-    if (permissions && permissions.dataScopes) {
-      if (this.permissionService.hasDataScope(permissions, 'workspace', 'basic')) {
-        dto = {
-          id: workspace.id,
-          name: workspace.name,
-          slug: workspace.slug,
-          ownerId: workspace.ownerId,
-          createdAt: workspace.createdAt,
-        };
-      }
+    if (this.permissionService.hasDataScope(permissions, 'workspace', 'basic')) {
+      dto = {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        ownerId: workspace.ownerId,
+        createdAt: workspace.createdAt,
+      };
 
       if (this.permissionService.hasDataScope(permissions, 'workspace', 'settings')) {
         dto.settings = workspace.settings || {};

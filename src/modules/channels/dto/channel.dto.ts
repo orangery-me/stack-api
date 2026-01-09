@@ -19,4 +19,13 @@ export class ChannelDto {
 
   @ApiProperty()
   createdAt: Date;
+
+  @ApiProperty({ required: false, type: 'object' })
+  metadata?: Record<string, any>;
+
+  @ApiProperty({ required: false, type: 'object' })
+  settings?: Record<string, any>;
+
+  @ApiProperty({ required: false })
+  isDefault?: boolean;
 }

@@ -143,12 +143,17 @@ export class WorkspacesService {
     await this.workspaceMemberRepository.save(workspaceMember);
 
     // Create default main channel (public) and add all current members (initially just owner)
-    await this.channelsService.createChannel(savedWorkspace.id, userId, {
+    const mainChannelResult = await this.channelsService.createChannel(savedWorkspace.id, userId, {
       type: ChannelType.PUBLIC,
       name: 'main-channel',
       metadata: {},
       settings: {},
+      isDefault: true,
     });
+
+    // Initialize default channel roles for the main channel
+    const channelData = Array.isArray(mainChannelResult.data) ? mainChannelResult.data[0] : mainChannelResult.data;
+    await this.channelsService.initializeChannelRoles(channelData.id);
 
     // Process invites if provided
     if (createDto.invites && createDto.invites.length > 0) {

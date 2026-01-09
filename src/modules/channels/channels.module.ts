@@ -6,9 +6,12 @@ import {
   ChannelRoleEntity,
   WorkspaceEntity,
   WorkspaceMemberEntity,
+  WorkspaceRoleEntity,
 } from '@app/entities';
 import { ChannelsService } from './channels.service';
 import { ChannelsController } from './channels.controller';
+import { ChannelPolicy } from '../../policy/channel.policy';
+import { PermissionService } from '../../policy/permission.service';
 
 @Module({
   imports: [
@@ -18,10 +21,11 @@ import { ChannelsController } from './channels.controller';
       ChannelRoleEntity,
       WorkspaceEntity,
       WorkspaceMemberEntity,
+      WorkspaceRoleEntity,
     ]),
   ],
   controllers: [ChannelsController],
-  providers: [ChannelsService],
+  providers: [ChannelsService, ChannelPolicy, PermissionService],
   exports: [ChannelsService],
 })
 export class ChannelsModule {}

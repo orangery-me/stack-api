@@ -14,7 +14,7 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
         'message:*': true,
       },
       dataScopes: {
-        channel: ['settings'],
+        channel: ['basic', 'settings'],
       },
     },
   },
@@ -28,7 +28,7 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
         'message:view': true,
       },
       dataScopes: {
-        channel: [],
+        channel: ['basic'],
       },
     },
   },
