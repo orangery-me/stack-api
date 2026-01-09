@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResponseItem } from '@app/common/dtos';
@@ -247,11 +242,7 @@ export class ChannelsService {
     return new ResponseItem<ChannelDto[]>(channelDtos, 'User channels fetched successfully');
   }
 
-  async getChannelById(
-    workspaceId: string,
-    channelId: string,
-    userId: string
-  ): Promise<ResponseItem<ChannelDto>> {
+  async getChannelById(workspaceId: string, channelId: string, userId: string): Promise<ResponseItem<ChannelDto>> {
     // Verify workspace membership
     const workspaceMember = await this.workspaceMemberRepository.findOne({
       where: {

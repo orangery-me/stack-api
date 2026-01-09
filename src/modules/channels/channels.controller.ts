@@ -1,12 +1,5 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { ChannelsService } from './channels.service';
@@ -50,10 +43,7 @@ export class ChannelsController {
     type: [ChannelDto],
   })
   @ApiResponse({ status: 403, description: 'Forbidden - not admin or owner' })
-  async getAllChannels(
-    @Req() request,
-    @Param('workspaceId') workspaceId: string
-  ): Promise<ResponseItem<ChannelDto[]>> {
+  async getAllChannels(@Req() request, @Param('workspaceId') workspaceId: string): Promise<ResponseItem<ChannelDto[]>> {
     return this.channelsService.getAllChannels(workspaceId, request.user.userId);
   }
 

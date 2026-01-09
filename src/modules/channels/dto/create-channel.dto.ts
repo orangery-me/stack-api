@@ -27,7 +27,11 @@ export class CreateChannelDto {
   @IsOptional()
   settings?: Record<string, any>;
 
-  @ApiProperty({ required: false, description: 'Whether this is the default channel for the workspace', default: false })
+  @ApiProperty({
+    required: false,
+    description: 'Whether this is the default channel for the workspace',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
