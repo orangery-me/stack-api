@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package workspace;
+
+service WorkspaceService {
+  rpc VerifyMembership (VerifyMembershipRequest) returns (VerifyMembershipResponse);
+}
+
+message VerifyMembershipRequest {
+  string userId = 1;
+  string workspaceId = 2;
+}
+
+message VerifyMembershipResponse {
+  bool isValid = 1;
+  string message = 2;
+}
