@@ -12,7 +12,8 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const grpcPort = configService.get<number>('GRPC_PORT', 50051);
   const grpcUrl = `0.0.0.0:${grpcPort}`;
-  const protoPath = join(process.cwd(), 'proto', 'workspace.proto');
+  const workspaceProtoPath = join(process.cwd(), 'proto', 'workspace.proto');
+  const userProtoPath = join(process.cwd(), 'proto', 'user.proto');
 
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN'),
@@ -78,8 +79,8 @@ async function bootstrap() {
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,
     options: {
-      package: 'workspace',
-      protoPath,
+      package: ['workspace', 'user'],
+      protoPath: [workspaceProtoPath, userProtoPath],
       url: grpcUrl,
     },
   });

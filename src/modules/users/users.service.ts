@@ -135,11 +135,12 @@ export class UsersService {
   }
 
   async getProfile(id: string): Promise<ResponseItem<ProfileDto>> {
-    const user = await this.userModel.findOne({ _id: id });
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) throw new BadRequestException('User does not exist');
 
     const result = plainToClass(
       ProfileDto,
-      { ...user.toObject(), avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null },
+      { ...user, avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null },
       { excludeExtraneousValues: true }
     );
 
