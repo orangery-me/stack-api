@@ -2,18 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { join } from 'path';
 import { AppModule } from '@app/app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
-  const grpcPort = configService.get<number>('GRPC_PORT', 50051);
-  const grpcUrl = `0.0.0.0:${grpcPort}`;
-  const workspaceProtoPath = join(process.cwd(), 'proto', 'workspace.proto');
-  const userProtoPath = join(process.cwd(), 'proto', 'user.proto');
 
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN'),
@@ -76,18 +70,6 @@ async function bootstrap() {
   }
 
   // Start server
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.GRPC,
-    options: {
-      package: ['workspace', 'user'],
-      protoPath: [workspaceProtoPath, userProtoPath],
-      url: grpcUrl,
-    },
-  });
-
-  await app.startAllMicroservices();
-  console.log(`🚀 gRPC service is running on: ${grpcUrl}`);
-
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`🌍 Environment: ${nodeEnv}`);
 

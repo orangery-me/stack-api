@@ -13,6 +13,8 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { ChannelsModule } from './modules/channels/channels.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { WsModule } from './modules/ws/ws.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -34,8 +36,10 @@ import * as Joi from 'joi';
       validationSchema: Joi.object({
         // Application
         APP_PORT: Joi.number().default(8105),
-        GRPC_PORT: Joi.number().default(50051),
         NODE_ENV: Joi.string().valid('development', 'staging', 'production').default('development'),
+
+        // Stack Chat Service (gRPC client connection)
+        STACK_CHAT_GRPC_URL: Joi.string().default('localhost:50052'),
 
         // Database - PostgreSQL
         DB_POSTGRE_HOST: Joi.string().default('localhost'),
@@ -91,6 +95,8 @@ import * as Joi from 'joi';
     WorkspacesModule,
     KeepAliveModule,
     ChannelsModule,
+    ChatModule,
+    WsModule,
   ],
   providers: [
     {

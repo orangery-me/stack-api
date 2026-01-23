@@ -11,7 +11,6 @@ import { EmailModule } from '../email/email.module';
 import { ChannelsModule } from '../channels/channels.module';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
-import { WorkspacesGrpcController } from './workspaces-grpc.controller';
 import { WorkspacePolicy } from '../../policy/workspace.policy';
 import { PermissionService } from '../../policy/permission.service';
 
@@ -27,7 +26,7 @@ import { PermissionService } from '../../policy/permission.service';
     EmailModule,
     ChannelsModule,
   ],
-  controllers: [WorkspacesController, WorkspacesGrpcController],
+  controllers: [WorkspacesController],
   providers: [WorkspacesService, WorkspacePolicy, PermissionService],
   exports: [WorkspacesService],
 })
