@@ -11,8 +11,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     super({ usernameField: 'email' });
   }
 
-  async validate(email: string, password: string, req?: any): Promise<UserPayloadDto> {
-    const lang = req?.headers?.['x-lang'] || req?.query?.lang || 'vi';
-    return await this.authService.validateUser({ email, password }, lang);
+  async validate(email: string, password: string): Promise<UserPayloadDto> {
+    return await this.authService.validateUser({ email, password });
   }
 }

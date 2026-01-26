@@ -69,7 +69,7 @@ export class EmailService {
 
     return this.sendEmail({
       to: email,
-      subject: 'Xác thực tài khoản Stack App',
+      subject: 'Verify your Stack App account',
       html,
     });
   }
@@ -82,7 +82,7 @@ export class EmailService {
 
     return this.sendEmail({
       to: email,
-      subject: 'Đặt lại mật khẩu Stack App',
+      subject: 'Reset your Stack App password',
       html,
     });
   }
@@ -92,7 +92,26 @@ export class EmailService {
 
     return this.sendEmail({
       to: email,
-      subject: 'Chào mừng bạn đến với Stack App',
+      subject: 'Welcome to Stack App',
+      html,
+    });
+  }
+
+  async sendWorkspaceInviteEmail(
+    email: string,
+    inviterName: string,
+    workspaceName: string,
+    roleName: string,
+    token: string
+  ): Promise<boolean> {
+    const clientUrl = this.configService.get<string>('CLIENT_URL');
+    const acceptUrl = `${clientUrl}/workspaces/invite/accept?token=${token}`;
+
+    const html = this.getWorkspaceInviteEmailTemplate(inviterName, workspaceName, roleName, acceptUrl);
+
+    return this.sendEmail({
+      to: email,
+      subject: `Invitation to join workspace ${workspaceName} on Stack App`,
       html,
     });
   }
@@ -104,7 +123,7 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác thực email</title>
+        <title>Verify your email</title>
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -120,18 +139,18 @@ export class EmailService {
             <h1>Stack App</h1>
           </div>
           <div class="content">
-            <h2>Xin chào ${name}!</h2>
-            <p>Cảm ơn bạn đã đăng ký tài khoản Stack App. Để hoàn tất quá trình đăng ký, vui lòng xác thực địa chỉ email của bạn.</p>
+            <h2>Hello ${name}!</h2>
+            <p>Thank you for signing up for Stack App. To complete your registration, please verify your email address.</p>
             <div style="text-align: center;">
-              <a href="${verificationUrl}" class="button">Xác thực email</a>
+              <a href="${verificationUrl}" class="button">Verify email</a>
             </div>
-            <p>Hoặc copy và paste đường link sau vào trình duyệt:</p>
+            <p>Or copy and paste the following link into your browser:</p>
             <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">${verificationUrl}</p>
-            <p><strong>Lưu ý:</strong> Link xác thực này sẽ hết hạn sau 24 giờ.</p>
-            <p>Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email này.</p>
+            <p><strong>Note:</strong> This verification link will expire in 24 hours.</p>
+            <p>If you did not sign up for this account, you can safely ignore this email.</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 Stack App. All rights reserved.</p>
+            <p>&copy; 2026 Stack App. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -146,7 +165,7 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Đặt lại mật khẩu</title>
+        <title>Reset your password</title>
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -162,18 +181,18 @@ export class EmailService {
             <h1>Stack App</h1>
           </div>
           <div class="content">
-            <h2>Xin chào ${name}!</h2>
-            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+            <h2>Hello ${name}!</h2>
+            <p>We received a request to reset the password for your account.</p>
             <div style="text-align: center;">
-              <a href="${resetUrl}" class="button">Đặt lại mật khẩu</a>
+              <a href="${resetUrl}" class="button">Reset password</a>
             </div>
-            <p>Hoặc copy và paste đường link sau vào trình duyệt:</p>
+            <p>Or copy and paste the following link into your browser:</p>
             <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">${resetUrl}</p>
-            <p><strong>Lưu ý:</strong> Link này sẽ hết hạn sau 1 giờ.</p>
-            <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+            <p><strong>Note:</strong> This link will expire in 1 hour.</p>
+            <p>If you did not request a password reset, you can safely ignore this email.</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 Stack App. All rights reserved.</p>
+            <p>&copy; 2026 Stack App. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -188,7 +207,7 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Chào mừng bạn</title>
+        <title>Welcome</title>
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -200,22 +219,76 @@ export class EmailService {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎉 Chào mừng đến với Stack App!</h1>
+            <h1>🎉 Welcome to Stack App!</h1>
           </div>
           <div class="content">
-            <h2>Xin chào ${name}!</h2>
-            <p>Chúc mừng bạn đã xác thực email thành công và trở thành thành viên của Stack App!</p>
-            <p>Bây giờ bạn có thể:</p>
+            <h2>Hello ${name}!</h2>
+            <p>Congratulations, your email has been verified and your Stack App account is ready!</p>
+            <p>You can now:</p>
             <ul>
-              <li>✅ Tạo và quản lý các task của mình</li>
-              <li>📊 Theo dõi tiến độ công việc</li>
-              <li>🎯 Đặt mục tiêu và deadline</li>
-              <li>📱 Truy cập từ mọi thiết bị</li>
+              <li>✅ Create and manage your tasks</li>
+              <li>📊 Track progress on your work</li>
+              <li>🎯 Set goals and deadlines</li>
+              <li>📱 Access from any device</li>
             </ul>
-            <p>Cảm ơn bạn đã tin tưởng và sử dụng Stack App!</p>
+            <p>Thank you for choosing Stack App!</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 Stack App. All rights reserved.</p>
+            <p>&copy; 2026 Stack App. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private getWorkspaceInviteEmailTemplate(
+    inviterName: string,
+    workspaceName: string,
+    roleName: string,
+    acceptUrl: string
+  ): string {
+    const roleDisplayName = roleName === 'owner' ? 'Owner' : roleName === 'admin' ? 'Admin' : 'Member';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Workspace invitation</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #B8A7FF; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #B8A7FF; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
+          .workspace-info { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #B8A7FF; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Stack App</h1>
+          </div>
+          <div class="content">
+            <h2>Workspace invitation</h2>
+            <p><strong>${inviterName}</strong> has invited you to join a workspace on Stack App.</p>
+            <div class="workspace-info">
+              <p><strong>Workspace:</strong> ${workspaceName}</p>
+              <p><strong>Role:</strong> ${roleDisplayName}</p>
+            </div>
+            <p>Click the button below to accept the invitation and join the workspace:</p>
+            <div style="text-align: center;">
+              <a href="${acceptUrl}" class="button">Accept invitation</a>
+            </div>
+            <p>Or copy and paste the following link into your browser:</p>
+            <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">${acceptUrl}</p>
+            <p><strong>Note:</strong> This link will expire in 7 days.</p>
+            <p>If you do not want to join this workspace, you can safely ignore this email.</p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2026 Stack App. All rights reserved.</p>
           </div>
         </div>
       </body>

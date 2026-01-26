@@ -24,6 +24,7 @@ import { UsersService } from '@UsersModule/users.service';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ProfileDto } from './dto/profile.dto';
+import { SearchUsersDto } from './dto/search-users.dto';
 import { UserDto } from './dto/user.dto';
 
 @ApiTags('users')
@@ -34,10 +35,10 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Tạo người dùng mới' })
+  @ApiOperation({ summary: 'Create a new user' })
   @ApiConsumes('multipart/form-data')
-  @ApiResponse({ status: 201, description: 'Người dùng được tạo thành công', type: UserDto })
-  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
+  @ApiResponse({ status: 201, description: 'User created successfully', type: UserDto })
+  @ApiResponse({ status: 400, description: 'Invalid data' })
   @UseInterceptors(FileInterceptor('avatar', fileOption('users')))
   async create(
     @UploadedFile()
@@ -45,87 +46,111 @@ export class UsersController {
     @Body() createUserDto
   ) {
     if (!avatar && createUserDto.containFile === 'true') {
-      throw new BadRequestException('Hình ảnh không hợp lệ');
+      throw new BadRequestException('Invalid image');
     }
     return await this.usersService.create(avatar, createUserDto);
   }
 
   @Patch('reset-password/:id')
-  @ApiOperation({ summary: 'Đặt lại mật khẩu người dùng' })
-  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
-  @ApiResponse({ status: 200, description: 'Đặt lại mật khẩu thành công', type: UserDto })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  @ApiOperation({ summary: 'Reset user password' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiResponse({ status: 200, description: 'Password reset successfully', type: UserDto })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async resetPassword(@Param('id') id: string): Promise<ResponseItem<UserDto>> {
     return await this.usersService.resetPassword(id);
   }
 
   @Post('change-password')
-  @ApiOperation({ summary: 'Thay đổi mật khẩu' })
-  @ApiResponse({ status: 200, description: 'Thay đổi mật khẩu thành công' })
-  @ApiResponse({ status: 400, description: 'Mật khẩu cũ không chính xác' })
+  @ApiOperation({ summary: 'Change password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Old password is incorrect' })
   async changePassword(@Req() req, @Body() changePasswordDto: ChangePasswordDto): Promise<ResponseItem<UserDto>> {
     return await this.usersService.changePassword(req.user.userId, changePasswordDto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách người dùng' })
-  @ApiQuery({ name: 'page', required: false, description: 'Số trang', type: Number })
-  @ApiQuery({ name: 'take', required: false, description: 'Số bản ghi mỗi trang', type: Number })
-  @ApiQuery({ name: 'search', required: false, description: 'Từ khóa tìm kiếm', type: String })
-  @ApiResponse({ status: 200, description: 'Lấy danh sách thành công' })
+  @ApiOperation({ summary: 'Get list of users' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'take', required: false, description: 'Number of records per page', type: Number })
+  @ApiQuery({ name: 'search', required: false, description: 'Search keyword', type: String })
+  @ApiResponse({ status: 200, description: 'Users fetched successfully' })
   async getUsers(@Query() getUsersDto: GetUsersDto): Promise<ResponsePaginate<UserDto>> {
     return await this.usersService.getUsers(getUsersDto);
   }
 
+  @Get('search')
+  @ApiOperation({ summary: 'Search users by email or name' })
+  @ApiQuery({ name: 'query', required: true, description: 'Search keyword', type: String })
+  @ApiQuery({ name: 'limit', required: false, description: 'Maximum number of results', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Search successful',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          email: { type: 'string' },
+          name: { type: 'string' },
+          avatar: { type: 'string', nullable: true },
+        },
+      },
+    },
+  })
+  async searchUsers(@Query() searchDto: SearchUsersDto): Promise<ResponseItem<any[]>> {
+    return await this.usersService.searchUsers(searchDto);
+  }
+
   @Get('me')
-  @ApiOperation({ summary: 'Lấy thông tin profile cá nhân' })
-  @ApiResponse({ status: 200, description: 'Lấy thông tin thành công', type: ProfileDto })
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({ status: 200, description: 'Profile fetched successfully', type: ProfileDto })
   async getProfile(@Req() req): Promise<ResponseItem<ProfileDto>> {
     return await this.usersService.getProfile(req.user.userId);
   }
 
   @Patch('profile')
-  @ApiOperation({ summary: 'Cập nhật thông tin profile cá nhân' })
-  @ApiResponse({ status: 200, description: 'Cập nhật thành công', type: UserDto })
-  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
+  @ApiOperation({ summary: 'Update current user profile' })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully', type: UserDto })
+  @ApiResponse({ status: 400, description: 'Invalid data' })
   async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto): Promise<ResponseItem<UserDto>> {
     return await this.usersService.updateProfile(req.user.userId, updateUserDto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Xóa người dùng' })
-  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
-  @ApiResponse({ status: 200, description: 'Xóa thành công' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  @ApiOperation({ summary: 'Delete user' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiResponse({ status: 200, description: 'Deleted successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async deleteUser(@Param('id') id: string): Promise<ResponseItem<null>> {
     return await this.usersService.deleteUser(id);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Lấy thông tin người dùng theo ID' })
-  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
-  @ApiResponse({ status: 200, description: 'Lấy thông tin thành công', type: UserDto })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiResponse({ status: 200, description: 'User fetched successfully', type: UserDto })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async getUser(@Param('id') id: string): Promise<ResponseItem<UserDto>> {
     return await this.usersService.getUser(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Cập nhật thông tin người dùng' })
-  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
-  @ApiResponse({ status: 200, description: 'Cập nhật thành công', type: UserDto })
-  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  @ApiOperation({ summary: 'Update user information' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiResponse({ status: 200, description: 'Updated successfully', type: UserDto })
+  @ApiResponse({ status: 400, description: 'Invalid data' })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<ResponseItem<UserDto>> {
     return await this.usersService.update(id, updateUserDto);
   }
 
   @Post('avatar/:id')
-  @ApiOperation({ summary: 'Upload ảnh đại diện' })
+  @ApiOperation({ summary: 'Upload avatar' })
   @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
-  @ApiResponse({ status: 200, description: 'Upload thành công' })
-  @ApiResponse({ status: 400, description: 'File không hợp lệ' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiResponse({ status: 200, description: 'Uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file' })
   @UseInterceptors(FileInterceptor('avatar', fileOption('users')))
   async uploadAvatar(
     @Param('id') id: string,
@@ -135,14 +160,14 @@ export class UsersController {
     if (avatar) {
       return await this.usersService.uploadAvatar(id, avatar);
     }
-    throw new BadRequestException('Hình ảnh không hợp lệ');
+    throw new BadRequestException('Invalid image');
   }
 
   @Patch('avatar/:id')
-  @ApiOperation({ summary: 'Xóa ảnh đại diện' })
-  @ApiParam({ name: 'id', description: 'ID người dùng', type: String })
-  @ApiResponse({ status: 200, description: 'Xóa ảnh thành công' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  @ApiOperation({ summary: 'Remove avatar' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiResponse({ status: 200, description: 'Avatar removed successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async removeAvatar(@Param('id') id: string): Promise<ResponseItem<UserDto>> {
     return await this.usersService.removeAvatar(id);
   }

@@ -1,6 +1,5 @@
 import { ResponseItem } from '@app/common/dtos';
 import { Body, Controller, Get, Headers, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { I18nLang } from 'nestjs-i18n';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiHeader, ApiBody } from '@nestjs/swagger';
 
 import { AuthService } from './auth.service';
@@ -23,36 +22,32 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @HttpCode(200)
   @Post('login')
-  @ApiOperation({ summary: 'Đăng nhập' })
+  @ApiOperation({ summary: 'Login' })
   @ApiBody({ type: CredentialsDto })
   @ApiResponse({
     status: 200,
-    description: 'Đăng nhập thành công',
+    description: 'Login successful',
     type: TokenDto,
   })
-  @ApiResponse({ status: 401, description: 'Thông tin đăng nhập không chính xác' })
-  async login(
-    @Req() request,
-    @Body() _credentials: CredentialsDto,
-    @I18nLang() lang: string
-  ): Promise<ResponseItem<TokenDto>> {
-    return this.authService.login(request.user, lang);
+  @ApiResponse({ status: 401, description: 'Invalid login credentials' })
+  async login(@Req() request, @Body() _credentials: CredentialsDto): Promise<ResponseItem<TokenDto>> {
+    return this.authService.login(request.user);
   }
 
   @UseGuards(JwtAccessTokenGuard)
   @Get('logout')
-  @ApiOperation({ summary: 'Đăng xuất' })
+  @ApiOperation({ summary: 'Logout' })
   @ApiBearerAuth('JWT-auth')
-  @ApiResponse({ status: 200, description: 'Đăng xuất thành công' })
-  @ApiResponse({ status: 401, description: 'Token không hợp lệ' })
-  async logout(@Req() request, @I18nLang() lang: string) {
-    return this.authService.logout(request.user.userId, lang);
+  @ApiResponse({ status: 200, description: 'Logout successful' })
+  @ApiResponse({ status: 401, description: 'Invalid token' })
+  async logout(@Req() request) {
+    return this.authService.logout(request.user.userId);
   }
 
   @UseGuards(JwtRefreshTokenGuard)
   @HttpCode(200)
   @Get('refresh')
-  @ApiOperation({ summary: 'Làm mới token' })
+  @ApiOperation({ summary: 'Refresh access token' })
   @ApiHeader({
     name: 'Authorization',
     description: 'Bearer refresh_token',
@@ -60,21 +55,21 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Làm mới token thành công',
+    description: 'Access token refreshed successfully',
     type: TokenDto,
   })
-  @ApiResponse({ status: 401, description: 'Refresh token không hợp lệ' })
-  refresh(@Headers('Authorization') auth: string, @I18nLang() lang: string) {
+  @ApiResponse({ status: 401, description: 'Refresh token is invalid' })
+  refresh(@Headers('Authorization') auth: string) {
     const token = auth.replace('Bearer ', '');
-    return this.authService.refreshToken(token, lang);
+    return this.authService.refreshToken(token);
   }
 
   @Post('register')
-  @ApiOperation({ summary: 'Đăng ký tài khoản mới' })
+  @ApiOperation({ summary: 'Register a new account' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
     status: 201,
-    description: 'Đăng ký thành công. Email xác thực đã được gửi.',
+    description: 'Registration successful. Verification email has been sent.',
     schema: {
       type: 'object',
       properties: {
@@ -83,17 +78,17 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Email hoặc thông tin đã được sử dụng' })
+  @ApiResponse({ status: 400, description: 'Email or phone number already in use' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('verify-email')
-  @ApiOperation({ summary: 'Xác thực email' })
+  @ApiOperation({ summary: 'Verify email' })
   @ApiBody({ type: VerifyEmailDto })
   @ApiResponse({
     status: 200,
-    description: 'Xác thực email thành công',
+    description: 'Email verified successfully',
     schema: {
       type: 'object',
       properties: {
@@ -101,25 +96,25 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Token không hợp lệ hoặc đã hết hạn' })
+  @ApiResponse({ status: 400, description: 'Token is invalid or has expired' })
   async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
     return this.authService.verifyEmail(verifyEmailDto);
   }
 
   @Get('verify-email')
-  @ApiOperation({ summary: 'Xác thực email qua URL (GET)' })
-  @ApiResponse({ status: 200, description: 'Xác thực email thành công' })
-  @ApiResponse({ status: 400, description: 'Token không hợp lệ hoặc đã hết hạn' })
+  @ApiOperation({ summary: 'Verify email via URL (GET)' })
+  @ApiResponse({ status: 200, description: 'Email verified successfully' })
+  @ApiResponse({ status: 400, description: 'Token is invalid or has expired' })
   async verifyEmailByUrl(@Query('token') token: string) {
     return this.authService.verifyEmail({ token });
   }
 
   @Post('resend-verification')
-  @ApiOperation({ summary: 'Gửi lại email xác thực' })
+  @ApiOperation({ summary: 'Resend verification email' })
   @ApiBody({ type: ResendVerificationDto })
   @ApiResponse({
     status: 200,
-    description: 'Email xác thực đã được gửi lại',
+    description: 'Verification email resent successfully',
     schema: {
       type: 'object',
       properties: {
@@ -127,14 +122,14 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Email không tồn tại hoặc đã được xác thực' })
+  @ApiResponse({ status: 400, description: 'Email does not exist or has already been verified' })
   async resendVerification(@Body() resendDto: ResendVerificationDto) {
     return this.authService.resendVerification(resendDto);
   }
 
   @Post('google/login')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Đăng nhập bằng Google (Authorization Code)' })
+  @ApiOperation({ summary: 'Login with Google (Authorization Code)' })
   @ApiBody({ type: GoogleCodeDto })
   @ApiResponse({ status: 200, type: TokenDto })
   async verifyGoogleCode(@Body() googleCodeDto: GoogleCodeDto) {
