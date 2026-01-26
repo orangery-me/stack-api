@@ -29,6 +29,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/public ./public
 COPY --from=builder --chown=nestjs:nodejs /app/src/i18n ./src/i18n
+COPY --from=builder --chown=nestjs:nodejs /app/proto ./proto
 
 USER nestjs
 
