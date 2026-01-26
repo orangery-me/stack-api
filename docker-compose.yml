@@ -25,4 +25,4 @@ services:
 
 networks:
   stack-network:
-    driver: bridge
+    external: true
