@@ -39,7 +39,7 @@ import * as Joi from 'joi';
         NODE_ENV: Joi.string().valid('development', 'staging', 'production').default('development'),
 
         // Stack Chat Service (gRPC client connection)
-        STACK_CHAT_GRPC_URL: Joi.string().default('localhost:50052'),
+        STACK_CHAT_GRPC_URL: Joi.string().default('localhost:50051'),
 
         // Database - PostgreSQL
         DB_POSTGRE_HOST: Joi.string().default('localhost'),

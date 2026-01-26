@@ -17,7 +17,7 @@ import { ChatClientService } from './chat-client.service';
           options: {
             package: 'chat',
             protoPath: join(process.cwd(), 'proto', 'chat.proto'),
-            url: configService.get<string>('STACK_CHAT_GRPC_URL', 'localhost:50052'),
+            url: configService.get<string>('STACK_CHAT_GRPC_URL', 'localhost:50051'),
           },
         }),
       },
