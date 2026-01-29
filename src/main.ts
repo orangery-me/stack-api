@@ -35,6 +35,7 @@ async function bootstrap() {
       .setVersion('1.0')
       .addTag('auth', 'Authentication endpoints')
       .addTag('users', 'User management endpoints')
+      .addTag('canvas', 'Canvas management endpoints')
       .addTag('keep-alive', 'Keep-alive service endpoints')
       .addBearerAuth(
         {

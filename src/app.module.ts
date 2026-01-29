@@ -15,6 +15,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { WsModule } from './modules/ws/ws.module';
+import { CanvasModule } from './modules/canvas/canvas.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -97,6 +98,7 @@ import * as Joi from 'joi';
     ChannelsModule,
     ChatModule,
     WsModule,
+    CanvasModule,
   ],
   providers: [
     {
