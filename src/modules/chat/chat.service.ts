@@ -145,16 +145,18 @@ export class ChatService {
     const formattedMessages = [];
 
     // format messages
-    for (const message of result.messages) {
-      const profileResponse = (await this.usersService.getProfile(message.senderId)) as ResponseItem<ProfileDto>;
-      const profile = profileResponse.data as ProfileDto;
+    if (result.messages && result.messages.length > 0) {
+      for (const message of result.messages) {
+        const profileResponse = (await this.usersService.getProfile(message.senderId)) as ResponseItem<ProfileDto>;
+        const profile = profileResponse.data as ProfileDto;
 
-      formattedMessages.push({
-        ...message,
-        senderName: profile.name,
-        senderEmail: profile.email,
-        senderAvatar: profile.avatar || null,
-      });
+        formattedMessages.push({
+          ...message,
+          senderName: profile.name,
+          senderEmail: profile.email,
+          senderAvatar: profile.avatar || null,
+        });
+      }
     }
 
     return {
