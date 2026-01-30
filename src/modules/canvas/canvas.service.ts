@@ -92,12 +92,47 @@ export class CanvasService {
     };
   }
 
-  async createCanvas(
-    workspaceId: string,
-    channelId: string,
-    userId: string,
-    dto: CreateCanvasDto
-  ): Promise<CanvasDto> {
+  /**
+   * Lấy title từ nội dung canvas
+   * @param rawContent - Nội dung canvas
+   * @param fallbackTitle - Tên mặc định nếu không tìm thấy title
+   * @returns Tên canvas
+   */
+  private deriveCanvasTitleFromContent(rawContent: any, fallbackTitle: string): string {
+    try {
+      let parsed = rawContent as any;
+
+      // FE có thể gửi JSON string
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+
+      if (parsed && Array.isArray(parsed.blocks)) {
+        const heading1 = parsed.blocks.find(
+          (b: any) => b.type === 'heading1' && typeof b.content === 'string' && b.content.trim().length > 0
+        );
+
+        if (heading1) {
+          return heading1.content.trim();
+        }
+
+        // fallback
+        const firstTextBlock = parsed.blocks.find(
+          (b: any) => typeof b.content === 'string' && b.content.trim().length > 0
+        );
+
+        if (firstTextBlock) {
+          return firstTextBlock.content.trim();
+        }
+      }
+    } catch {
+      // parse lỗi => dùng fallback
+    }
+
+    return fallbackTitle;
+  }
+
+  async createCanvas(workspaceId: string, channelId: string, userId: string, dto: CreateCanvasDto): Promise<CanvasDto> {
     const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const canvas = this.canvasRepository.create({
@@ -118,7 +153,12 @@ export class CanvasService {
       dto.initialContent ??
       ({
         version: 1,
-        blocks: [],
+        blocks: [
+          {
+            type: 'heading1',
+            content: '',
+          },
+        ],
       } as any);
 
     const content = this.canvasContentRepository.create({
@@ -136,12 +176,7 @@ export class CanvasService {
     return this.mapCanvasToDto(savedCanvas, savedContent);
   }
 
-  async getCanvas(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    userId: string
-  ): Promise<CanvasDto> {
+  async getCanvas(workspaceId: string, channelId: string, canvasId: string, userId: string): Promise<CanvasDto> {
     await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const canvas = await this.canvasRepository.findOne({
@@ -156,11 +191,7 @@ export class CanvasService {
     return this.mapCanvasToDto(canvas, canvas.content ?? null);
   }
 
-  async getCanvasesForChannel(
-    workspaceId: string,
-    channelId: string,
-    userId: string
-  ): Promise<CanvasDto[]> {
+  async getCanvasesForChannel(workspaceId: string, channelId: string, userId: string): Promise<CanvasDto[]> {
     await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const canvases = await this.canvasRepository.find({
@@ -207,6 +238,12 @@ export class CanvasService {
       content.revision += 1;
       content.isDirty = true;
       content.updatedById = workspaceMember.id;
+    }
+
+    // Cập nhật title của canvas dựa trên nội dung blocks
+    const newTitle = this.deriveCanvasTitleFromContent(dto.content, 'New page');
+    if (canvas.title !== newTitle) {
+      canvas.title = newTitle;
     }
 
     canvas.lastAutoSaveAt = new Date();
@@ -268,10 +305,7 @@ export class CanvasService {
     canvas.lastPublishedVersion = newVersionNumber;
     canvas.updatedById = workspaceMember.id;
 
-    await Promise.all([
-      this.canvasContentRepository.save(content),
-      this.canvasRepository.save(canvas),
-    ]);
+    await Promise.all([this.canvasContentRepository.save(content), this.canvasRepository.save(canvas)]);
 
     return this.mapVersionToDto(savedVersion, true);
   }
@@ -387,4 +421,3 @@ export class CanvasService {
     return this.mapCanvasToDto(savedCanvas, savedContent);
   }
 }
-
