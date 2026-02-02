@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { CanvasService } from './canvas.service';
 import { CreateCanvasDto } from './dto/create-canvas.dto';
 import { SaveCanvasContentDto } from './dto/save-canvas-content.dto';
+import { UpdateCanvasDto } from './dto/update-canvas.dto';
 import { CanvasDto } from './dto/canvas.dto';
 import { CanvasVersionDto } from './dto/canvas-version.dto';
 
@@ -78,6 +79,30 @@ export class CanvasController {
   }
 
   @UseGuards(JwtAccessTokenGuard)
+  @Patch(':canvasId')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Cập nhật canvas (title riêng, không gắn với content)' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiParam({ name: 'channelId', description: 'Channel ID' })
+  @ApiParam({ name: 'canvasId', description: 'Canvas ID' })
+  @ApiBody({ type: UpdateCanvasDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Canvas updated successfully',
+    type: CanvasDto,
+  })
+  async updateCanvas(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Param('channelId') channelId: string,
+    @Param('canvasId') canvasId: string,
+    @Body() dto: UpdateCanvasDto
+  ): Promise<ResponseItem<CanvasDto>> {
+    const result = await this.canvasService.updateCanvas(workspaceId, channelId, canvasId, request.user.userId, dto);
+    return new ResponseItem<CanvasDto>(result, 'Canvas updated successfully');
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
   @Put(':canvasId/content')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Auto-save nội dung canvas hiện tại' })
@@ -125,12 +150,7 @@ export class CanvasController {
     @Param('channelId') channelId: string,
     @Param('canvasId') canvasId: string
   ): Promise<ResponseItem<CanvasVersionDto>> {
-    const result = await this.canvasService.createCanvasVersion(
-      workspaceId,
-      channelId,
-      canvasId,
-      request.user.userId
-    );
+    const result = await this.canvasService.createCanvasVersion(workspaceId, channelId, canvasId, request.user.userId);
     return new ResponseItem<CanvasVersionDto>(result, 'Canvas version created successfully');
   }
 
@@ -152,12 +172,7 @@ export class CanvasController {
     @Param('channelId') channelId: string,
     @Param('canvasId') canvasId: string
   ): Promise<ResponseItem<CanvasVersionDto[]>> {
-    const result = await this.canvasService.getCanvasVersions(
-      workspaceId,
-      channelId,
-      canvasId,
-      request.user.userId
-    );
+    const result = await this.canvasService.getCanvasVersions(workspaceId, channelId, canvasId, request.user.userId);
     return new ResponseItem<CanvasVersionDto[]>(result, 'Canvas versions fetched successfully');
   }
 
@@ -223,4 +238,3 @@ export class CanvasController {
     return new ResponseItem<CanvasDto>(result, 'Canvas reverted successfully');
   }
 }
-
