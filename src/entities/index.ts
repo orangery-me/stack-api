@@ -7,3 +7,6 @@ export * from './workspace/workspace-invite.entity';
 export * from './channel/channel.entity';
 export * from './channel/channel-member.entity';
 export * from './channel/channel-role.entity';
+export * from './canvas/canvas.entity';
+export * from './canvas/canvas-content.entity';
+export * from './canvas/canvas-version.entity';
