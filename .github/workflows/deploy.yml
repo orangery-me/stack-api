@@ -33,6 +33,6 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/api
+            cd /data_disk_d
             docker compose pull
             docker compose up -d
