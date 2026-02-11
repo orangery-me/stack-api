@@ -93,7 +93,18 @@ export class CanvasService {
     };
   }
 
-  async createCanvas(workspaceId: string, channelId: string, userId: string, dto: CreateCanvasDto): Promise<CanvasDto> {
+  async createCanvas(channelId: string, userId: string, dto: CreateCanvasDto): Promise<CanvasDto> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId },
+      relations: ['workspace'],
+    });
+
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    const { workspaceId } = channel;
+
     const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const canvas = this.canvasRepository.create({
@@ -137,38 +148,36 @@ export class CanvasService {
     return this.mapCanvasToDto(savedCanvas, savedContent);
   }
 
-  async getCanvas(workspaceId: string, channelId: string, canvasId: string, userId: string): Promise<CanvasDto> {
-    await this.verifyChannelMembership(workspaceId, channelId, userId);
-
+  async getCanvas(canvasId: string, userId: string): Promise<CanvasDto> {
     const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
-      relations: ['content'],
+      where: { id: canvasId },
+      relations: ['workspace', 'channel', 'content'],
     });
 
     if (!canvas) {
       throw new NotFoundException('Canvas not found');
     }
+
+    const { workspaceId, channelId } = canvas;
+
+    await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     return this.mapCanvasToDto(canvas, canvas.content ?? null);
   }
 
-  async updateCanvas(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    userId: string,
-    dto: UpdateCanvasDto
-  ): Promise<CanvasDto> {
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
-
+  async updateCanvas(canvasId: string, userId: string, dto: UpdateCanvasDto): Promise<CanvasDto> {
     const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
-      relations: ['content'],
+      where: { id: canvasId },
+      relations: ['workspace', 'channel'],
     });
 
     if (!canvas) {
       throw new NotFoundException('Canvas not found');
     }
+
+    const { workspaceId, channelId } = canvas;
+
+    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     if (dto.title !== undefined) {
       canvas.title = (dto.title.trim() || 'New page').slice(0, 500);
@@ -180,7 +189,18 @@ export class CanvasService {
     return this.mapCanvasToDto(savedCanvas, canvas.content ?? null);
   }
 
-  async getCanvasesForChannel(workspaceId: string, channelId: string, userId: string): Promise<CanvasDto[]> {
+  async getCanvasesForChannel(channelId: string, userId: string): Promise<CanvasDto[]> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId },
+      relations: ['workspace'],
+    });
+
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    const { workspaceId } = channel;
+
     await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const canvases = await this.canvasRepository.find({
@@ -191,22 +211,19 @@ export class CanvasService {
     return canvases.map((canvas) => this.mapCanvasToDto(canvas));
   }
 
-  async saveCanvasContent(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    userId: string,
-    dto: SaveCanvasContentDto
-  ): Promise<CanvasDto> {
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
-
+  async saveCanvasContent(canvasId: string, userId: string, dto: SaveCanvasContentDto): Promise<CanvasDto> {
     const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
+      where: { id: canvasId },
+      relations: ['workspace', 'channel'],
     });
 
     if (!canvas) {
       throw new NotFoundException('Canvas not found');
     }
+
+    const { workspaceId, channelId } = canvas;
+
+    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     let content = await this.canvasContentRepository.findOne({
       where: { canvasId: canvas.id },
@@ -240,24 +257,21 @@ export class CanvasService {
     return this.mapCanvasToDto(savedCanvas, savedContent);
   }
 
-  async createCanvasVersion(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    userId: string
-  ): Promise<CanvasVersionDto> {
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
+  async createCanvasVersion(canvasId: string, userId: string): Promise<CanvasVersionDto> {
+    await this.getCanvas(canvasId, userId);
 
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
+    const canvasEntity = await this.canvasRepository.findOne({
+      where: { id: canvasId },
+      relations: ['workspace', 'channel'],
     });
-
-    if (!canvas) {
+    if (!canvasEntity) {
       throw new NotFoundException('Canvas not found');
     }
+    const { workspaceId, channelId } = canvasEntity;
+    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const content = await this.canvasContentRepository.findOne({
-      where: { canvasId: canvas.id },
+      where: { canvasId: canvasEntity.id },
     });
 
     if (!content) {
@@ -265,16 +279,16 @@ export class CanvasService {
     }
 
     const latestVersion = await this.canvasVersionRepository.findOne({
-      where: { canvasId: canvas.id },
+      where: { canvasId: canvasEntity.id },
       order: { version: 'DESC' },
     });
 
     const newVersionNumber = (latestVersion?.version ?? 0) + 1;
 
     const version = this.canvasVersionRepository.create({
-      canvasId: canvas.id,
+      canvasId: canvasEntity.id,
       version: newVersionNumber,
-      title: canvas.title,
+      title: canvasEntity.title,
       content: content.content,
       contentSchemaVersion: content.contentSchemaVersion,
       snapshotType: 'manual',
@@ -285,29 +299,18 @@ export class CanvasService {
 
     content.version = newVersionNumber;
     content.isDirty = false;
-    canvas.lastPublishedVersion = newVersionNumber;
-    canvas.updatedById = workspaceMember.id;
+    canvasEntity.lastPublishedVersion = newVersionNumber;
+    canvasEntity.updatedById = workspaceMember.id;
 
-    await Promise.all([this.canvasContentRepository.save(content), this.canvasRepository.save(canvas)]);
+    await Promise.all([this.canvasContentRepository.save(content), this.canvasRepository.save(canvasEntity)]);
 
     return this.mapVersionToDto(savedVersion, true);
   }
 
-  async getCanvasVersions(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    userId: string
-  ): Promise<CanvasVersionDto[]> {
+  async getCanvasVersions(canvasId: string, userId: string): Promise<CanvasVersionDto[]> {
+    const canvas = await this.getCanvas(canvasId, userId);
+    const { workspaceId, channelId } = canvas;
     await this.verifyChannelMembership(workspaceId, channelId, userId);
-
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
-    });
-
-    if (!canvas) {
-      throw new NotFoundException('Canvas not found');
-    }
 
     const versions = await this.canvasVersionRepository.find({
       where: { canvasId: canvas.id },
@@ -317,22 +320,10 @@ export class CanvasService {
     return versions.map((v) => this.mapVersionToDto(v));
   }
 
-  async getCanvasVersion(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    versionNumber: number,
-    userId: string
-  ): Promise<CanvasVersionDto> {
+  async getCanvasVersion(canvasId: string, versionNumber: number, userId: string): Promise<CanvasVersionDto> {
+    const canvas = await this.getCanvas(canvasId, userId);
+    const { workspaceId, channelId } = canvas;
     await this.verifyChannelMembership(workspaceId, channelId, userId);
-
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
-    });
-
-    if (!canvas) {
-      throw new NotFoundException('Canvas not found');
-    }
 
     const version = await this.canvasVersionRepository.findOne({
       where: { canvasId: canvas.id, version: versionNumber },
@@ -345,25 +336,21 @@ export class CanvasService {
     return this.mapVersionToDto(version, true);
   }
 
-  async revertCanvasToVersion(
-    workspaceId: string,
-    channelId: string,
-    canvasId: string,
-    versionNumber: number,
-    userId: string
-  ): Promise<CanvasDto> {
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
+  async revertCanvasToVersion(canvasId: string, versionNumber: number, userId: string): Promise<CanvasDto> {
+    await this.getCanvas(canvasId, userId);
 
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId, workspaceId, channelId },
+    const canvasEntity = await this.canvasRepository.findOne({
+      where: { id: canvasId },
+      relations: ['workspace', 'channel'],
     });
-
-    if (!canvas) {
+    if (!canvasEntity) {
       throw new NotFoundException('Canvas not found');
     }
+    const { workspaceId, channelId } = canvasEntity;
+    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
 
     const version = await this.canvasVersionRepository.findOne({
-      where: { canvasId: canvas.id, version: versionNumber },
+      where: { canvasId: canvasEntity.id, version: versionNumber },
     });
 
     if (!version) {
@@ -371,12 +358,12 @@ export class CanvasService {
     }
 
     let content = await this.canvasContentRepository.findOne({
-      where: { canvasId: canvas.id },
+      where: { canvasId: canvasEntity.id },
     });
 
     if (!content) {
       content = this.canvasContentRepository.create({
-        canvasId: canvas.id,
+        canvasId: canvasEntity.id,
         content: version.content,
         contentSchemaVersion: version.contentSchemaVersion,
         revision: 0,
@@ -393,11 +380,11 @@ export class CanvasService {
       content.revision += 1;
     }
 
-    canvas.lastPublishedVersion = version.version;
-    canvas.updatedById = workspaceMember.id;
+    canvasEntity.lastPublishedVersion = version.version;
+    canvasEntity.updatedById = workspaceMember.id;
 
     const [savedCanvas, savedContent] = await Promise.all([
-      this.canvasRepository.save(canvas),
+      this.canvasRepository.save(canvasEntity),
       this.canvasContentRepository.save(content),
     ]);
 

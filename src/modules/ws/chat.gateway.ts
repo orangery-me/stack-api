@@ -100,7 +100,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       });
 
       const room = `channel:${data.channelId}`;
-      client.join(room);
+      // client.join(room);
 
       // Broadcast message to all clients in the room
       client.to(room).emit('new_message', message);
