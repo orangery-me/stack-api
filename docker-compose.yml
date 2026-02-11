@@ -25,4 +25,3 @@ services:
 
 networks:
   stack-network:
-    external: true
