@@ -67,17 +67,32 @@ export class CanvasGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     try {
       // extract payload from token
       const payload = this.jwtTokenService.verifyToken(token);
-      // Get full user profile
-      const profileResponse = await this.usersService.getProfile(payload.sub);
-      const profile = profileResponse.data as ProfileDto;
 
-      // gán thông tin user cho client
+      // Gán trước thông tin user cơ bản từ JWT để tránh race-condition
+      // khi client join room ngay lập tức (trước khi load xong profile).
       client.data.user = {
         userId: payload.sub,
         email: payload.email,
-        name: profile?.name || payload.email,
-        avatar: profile?.avatar || null,
+        name: payload.email,
+        avatar: null,
       };
+
+      try {
+        const profileResponse = await this.usersService.getProfile(payload.sub);
+        const profile = profileResponse.data as ProfileDto;
+
+        client.data.user = {
+          userId: payload.sub,
+          email: payload.email,
+          name: profile?.name || payload.email,
+          avatar: profile?.avatar || null,
+        };
+      } catch (profileError) {
+        console.error(
+          '[CanvasGateway] Failed to load user profile, using JWT fallback:',
+          (profileError as any)?.message
+        );
+      }
 
       console.log('[CanvasGateway] Client connected:', client.id, 'User:', client.data.user);
     } catch (error) {
@@ -157,7 +172,7 @@ export class CanvasGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       users,
     });
 
-    console.log(`[CanvasGateway] Client ${client.id} got canvas edit page users: ${data.canvasId}`);
+    console.log(`[CanvasGateway] Client ${client.id} got canvas edit page users: ${data.canvasId}`, users);
   }
 
   /**
@@ -207,6 +222,7 @@ export class CanvasGateway implements OnGatewayInit, OnGatewayConnection, OnGate
    */
   private async getCanvasRoomUsers(canvasId: string) {
     const room = `canvas:${canvasId}`;
+    // Race-condition: Gán trước thông tin user cơ bản từ JWT để tránh race-condition
     const sockets = await this.server.in(room).fetchSockets();
 
     // Trả về danh sách thông tin user đã được set ở handleConnection
@@ -219,6 +235,8 @@ export class CanvasGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   private async broadcastCanvasUsers(canvasId: string) {
     const users = await this.getCanvasRoomUsers(canvasId);
     const room = `canvas:${canvasId}`;
+
+    console.log('[CanvasGateway] Broadcasting canvas users to room:', room, 'Users:', users);
 
     this.server.in(room).emit('canvas_edit_page_users', {
       canvasId,
