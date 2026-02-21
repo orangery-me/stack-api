@@ -163,7 +163,7 @@ export class CanvasController {
   }
 
   @UseGuards(JwtAccessTokenGuard)
-  @Patch(':canvasId')
+  @Post(':canvasId')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Cập nhật canvas (title riêng, không gắn với content)' })
   @ApiParam({ name: 'canvasId', description: 'Canvas ID' })

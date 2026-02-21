@@ -31,7 +31,7 @@ export class CanvasService {
     private readonly channelMemberRepository: Repository<ChannelMemberEntity>,
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>
-  ) {}
+  ) { }
 
   private async verifyChannelMembership(
     workspaceId: string,
