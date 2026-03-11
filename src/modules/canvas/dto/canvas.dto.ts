@@ -8,9 +8,6 @@ export class CanvasDto {
   workspaceId: string;
 
   @ApiProperty()
-  channelId: string;
-
-  @ApiProperty()
   title: string;
 
   @ApiPropertyOptional()
@@ -34,6 +31,15 @@ export class CanvasDto {
   @ApiProperty()
   updatedAt: Date;
 
+  @ApiProperty()
+  ownerId: string;
+
+  @ApiProperty({
+    description: 'Chế độ hiển thị của canvas',
+    example: 'private',
+  })
+  visibility: string;
+
   @ApiPropertyOptional({
     description: 'Version đã được publish gần nhất',
   })
@@ -45,9 +51,13 @@ export class CanvasDto {
   lastAutoSaveAt?: Date | null;
 
   @ApiPropertyOptional({
-    description: 'Nội dung hiện tại của canvas (optional)',
-    type: 'object',
+    description: 'User hiện tại có quyền edit không',
   })
-  content?: any;
+  canEdit?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Canvas có đang được share hay không',
+  })
+  isShared?: boolean;
 }
 

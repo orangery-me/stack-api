@@ -30,11 +30,6 @@ interface GetCanvasDataPayload {
   canvasId: string;
 }
 
-interface EditCanvasPayload {
-  canvasId: string;
-  content: any;
-}
-
 interface SyncCanvasPayload {
   canvasId: string;
   content: any;
@@ -217,37 +212,6 @@ export class CanvasGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     const room = `canvas:${data.canvasId}`;
     const canvas = { id: data.canvasId, content: data.content };
     this.server.in(room).emit('canvas_data', { canvas });
-  }
-
-  /**
-   * Edit canvas content (persist to DB)
-   * - Lưu lại content mới
-   * - Broadcast canvas_data cho tất cả client trong cùng canvas room (bao gồm cả người gửi)
-   */
-  @SubscribeMessage('edit_canvas')
-  async handleEditCanvas(@ConnectedSocket() client: Socket, @MessageBody() data: EditCanvasPayload) {
-    const user = client?.data?.user;
-
-    if (!user?.userId) {
-      client.emit('error', { message: 'Unauthorized' });
-      return;
-    }
-
-    const room = `canvas:${data.canvasId}`;
-
-    try {
-      const canvas = await this.canvasService.saveCanvasContent(data.canvasId, user.userId, {
-        content: data.content,
-      });
-
-      // Gửi content mới cho tất cả client trong room
-      this.server.in(room).emit('canvas_data', { canvas });
-
-      console.log(`[CanvasGateway] Client ${client.id} edited canvas: ${data.canvasId}`);
-    } catch (error: any) {
-      console.error('[CanvasGateway] Error editing canvas:', error?.message);
-      client.emit('error', { message: error?.message || 'Failed to edit canvas' });
-    }
   }
 
   /**

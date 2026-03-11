@@ -1,37 +1,38 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import {
-  CanvasEntity,
-  CanvasContentEntity,
-  CanvasVersionEntity,
-  ChannelEntity,
-  ChannelMemberEntity,
-  WorkspaceMemberEntity,
-} from '@app/entities';
+import { In, Not, Repository } from 'typeorm';
+import { CanvasEntity, ChannelEntity, ChannelMemberEntity, UserEntity, WorkspaceMemberEntity } from '@app/entities';
+import { CanvasPermissionEntity } from '@app/entities/canvas/canvas-permission.entity';
+import { CanvasRecentEntity } from '@app/entities/canvas/canvas-recent.entity';
 import { WorkspaceMemberStatusEnum } from '@Constant/enums';
 import { CanvasDto } from './dto/canvas.dto';
-import { CanvasVersionDto } from './dto/canvas-version.dto';
 import { CreateCanvasDto } from './dto/create-canvas.dto';
-import { SaveCanvasContentDto } from './dto/save-canvas-content.dto';
 import { UpdateCanvasDto } from './dto/update-canvas.dto';
+import { CanvasPermissionListDto, CanvasPermissionItemDto } from './dto/canvas-permission.dto';
+import { ShareCanvasWithUserDto } from './dto/share-canvas-user.dto';
+import { ShareCanvasWithChannelDto } from './dto/share-canvas-channel.dto';
+import { UpdateCanvasVisibilityDto } from './dto/update-canvas-visibility.dto';
+
+type CanvasAccessRole = 'viewer' | 'editor';
 
 @Injectable()
 export class CanvasService {
   constructor(
     @InjectRepository(CanvasEntity)
     private readonly canvasRepository: Repository<CanvasEntity>,
-    @InjectRepository(CanvasContentEntity)
-    private readonly canvasContentRepository: Repository<CanvasContentEntity>,
-    @InjectRepository(CanvasVersionEntity)
-    private readonly canvasVersionRepository: Repository<CanvasVersionEntity>,
     @InjectRepository(ChannelEntity)
     private readonly channelRepository: Repository<ChannelEntity>,
     @InjectRepository(ChannelMemberEntity)
     private readonly channelMemberRepository: Repository<ChannelMemberEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(WorkspaceMemberEntity)
-    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>
-  ) { }
+    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
+    @InjectRepository(CanvasPermissionEntity)
+    private readonly canvasPermissionRepository: Repository<CanvasPermissionEntity>,
+    @InjectRepository(CanvasRecentEntity)
+    private readonly canvasRecentRepository: Repository<CanvasRecentEntity>
+  ) {}
 
   private async verifyChannelMembership(
     workspaceId: string,
@@ -65,119 +66,219 @@ export class CanvasService {
     return { workspaceMember };
   }
 
-  private mapCanvasToDto(canvas: CanvasEntity, content?: CanvasContentEntity | null): CanvasDto {
+  private async getWorkspaceMemberOrThrow(workspaceId: string, userId: string): Promise<WorkspaceMemberEntity> {
+    const workspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId, status: WorkspaceMemberStatusEnum.ACTIVE },
+    });
+
+    if (!workspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    return workspaceMember;
+  }
+
+  private async getCanvasOrThrow(canvasId: string): Promise<CanvasEntity> {
+    const canvas = await this.canvasRepository.findOne({
+      where: { id: canvasId },
+      relations: ['workspace'],
+    });
+
+    if (!canvas) {
+      throw new NotFoundException('Canvas not found');
+    }
+
+    return canvas;
+  }
+
+  private upgradeRole(current: CanvasAccessRole | null, next: CanvasAccessRole): CanvasAccessRole {
+    if (current === 'editor' || next === 'editor') {
+      return 'editor';
+    }
+    return 'viewer';
+  }
+
+  private async getEffectiveCanvasRole(
+    canvas: CanvasEntity,
+    workspaceMember: WorkspaceMemberEntity
+  ): Promise<CanvasAccessRole | null> {
+    let effective: CanvasAccessRole | null = null;
+
+    // Owner luôn có full quyền
+    if (canvas.ownerId === workspaceMember.id) {
+      effective = 'editor';
+    }
+
+    // Public workspace => mọi member workspace có ít nhất viewer
+    if (canvas.visibility === 'public-workspace') {
+      effective = this.upgradeRole(effective, 'viewer');
+    }
+
+    // Permission trực tiếp theo user
+    const directPermission = await this.canvasPermissionRepository.findOne({
+      where: {
+        canvasId: canvas.id,
+        type: 'user',
+        targetId: workspaceMember.id,
+      },
+    });
+
+    if (directPermission) {
+      effective = this.upgradeRole(effective, directPermission.role);
+    }
+
+    // Permission qua channel mà user là member
+    const channelMemberships = await this.channelMemberRepository.find({
+      where: { memberId: workspaceMember.id },
+    });
+
+    if (channelMemberships.length > 0) {
+      const channelIds = channelMemberships.map((m) => m.channelId);
+
+      const channelPermissions = await this.canvasPermissionRepository.find({
+        where: {
+          canvasId: canvas.id,
+          type: 'channel',
+          targetId: In(channelIds),
+        },
+      });
+
+      for (const perm of channelPermissions) {
+        effective = this.upgradeRole(effective, perm.role);
+      }
+    }
+
+    return effective;
+  }
+
+  private async mapPermissionToDto(permission: CanvasPermissionEntity): Promise<CanvasPermissionItemDto> {
+    if (permission.type === 'user') {
+      const workspaceMember = await this.workspaceMemberRepository.findOne({
+        where: { id: permission.targetId },
+        relations: ['user'],
+      });
+
+      const email = workspaceMember?.user?.email ?? '';
+      const displayName = workspaceMember?.displayName || workspaceMember?.user?.name || email;
+
+      return {
+        id: permission.id,
+        type: permission.type,
+        targetId: permission.targetId,
+        role: permission.role,
+        label: displayName || email || permission.targetId,
+      };
+    }
+
+    if (permission.type === 'channel') {
+      const channel = await this.channelRepository.findOne({
+        where: { id: permission.targetId },
+      });
+
+      return {
+        id: permission.id,
+        type: permission.type,
+        targetId: permission.targetId,
+        role: permission.role,
+        label: channel?.name || permission.targetId,
+      };
+    }
+
+    return {
+      id: permission.id,
+      type: permission.type,
+      targetId: permission.targetId,
+      role: permission.role,
+      label: permission.targetId,
+    };
+  }
+
+  private async ensureCanvasPermission(
+    canvasId: string,
+    userId: string,
+    requiredRole: CanvasAccessRole
+  ): Promise<{ canvas: CanvasEntity; workspaceMember: WorkspaceMemberEntity; role: CanvasAccessRole }> {
+    const canvas = await this.getCanvasOrThrow(canvasId);
+    const workspaceMember = await this.getWorkspaceMemberOrThrow(canvas.workspaceId, userId);
+    const role = await this.getEffectiveCanvasRole(canvas, workspaceMember);
+
+    if (!role) {
+      throw new ForbiddenException('You do not have permission to access this canvas');
+    }
+
+    if (requiredRole === 'editor' && role !== 'editor') {
+      throw new ForbiddenException('You do not have permission to edit this canvas');
+    }
+
+    return { canvas, workspaceMember, role };
+  }
+
+  private async touchRecent(userId: string, canvasId: string): Promise<void> {
+    let recent = await this.canvasRecentRepository.findOne({
+      where: { userId, canvasId },
+    });
+
+    if (!recent) {
+      recent = this.canvasRecentRepository.create({ userId, canvasId });
+    }
+
+    await this.canvasRecentRepository.save(recent);
+  }
+
+  private mapCanvasToDto(canvas: CanvasEntity, options?: { canEdit?: boolean; isShared?: boolean }): CanvasDto {
     return {
       id: canvas.id,
       workspaceId: canvas.workspaceId,
-      channelId: canvas.channelId,
       title: canvas.title,
       description: canvas.description ?? null,
       status: canvas.status,
+      ownerId: canvas.ownerId,
       createdById: canvas.createdById,
       updatedById: canvas.updatedById ?? null,
       createdAt: canvas.createdAt,
       updatedAt: canvas.updatedAt,
+      visibility: canvas.visibility,
       lastPublishedVersion: canvas.lastPublishedVersion ?? null,
       lastAutoSaveAt: canvas.lastAutoSaveAt ?? null,
-      content: content ? content.content : undefined,
+      canEdit: options?.canEdit,
+      isShared: options?.isShared ?? canvas.visibility !== 'private',
     };
   }
 
-  private mapVersionToDto(version: CanvasVersionEntity, includeContent = false): CanvasVersionDto {
-    return {
-      version: version.version,
-      title: version.title ?? null,
-      savedById: version.savedById ?? null,
-      savedAt: version.savedAt,
-      content: includeContent ? version.content : undefined,
-    };
-  }
-
-  async createCanvas(channelId: string, userId: string, dto: CreateCanvasDto): Promise<CanvasDto> {
-    const channel = await this.channelRepository.findOne({
-      where: { id: channelId },
-      relations: ['workspace'],
-    });
-
-    if (!channel) {
-      throw new NotFoundException('Channel not found');
-    }
-
-    const { workspaceId } = channel;
-
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
+  async createCanvasForWorkspace(workspaceId: string, userId: string, dto: CreateCanvasDto): Promise<CanvasDto> {
+    const workspaceMember = await this.getWorkspaceMemberOrThrow(workspaceId, userId);
 
     const canvas = this.canvasRepository.create({
       workspaceId,
-      channelId,
       title: dto.title,
       description: dto.description ?? null,
       status: 'active',
+      ownerId: workspaceMember.id,
       createdById: workspaceMember.id,
       updatedById: workspaceMember.id,
       lastPublishedVersion: null,
       lastAutoSaveAt: null,
+      visibility: 'private',
     });
 
     const savedCanvas = await this.canvasRepository.save(canvas);
 
-    const initialContent =
-      dto.initialContent ??
-      ({
-        version: 1,
-        blocks: [
-          {
-            type: 'heading1',
-            content: '',
-          },
-        ],
-      } as any);
-
-    const content = this.canvasContentRepository.create({
-      canvasId: savedCanvas.id,
-      content: initialContent,
-      contentSchemaVersion: 1,
-      revision: 0,
-      version: null,
-      isDirty: true,
-      updatedById: workspaceMember.id,
-    });
-
-    const savedContent = await this.canvasContentRepository.save(content);
-
-    return this.mapCanvasToDto(savedCanvas, savedContent);
+    return this.mapCanvasToDto(savedCanvas, { canEdit: true, isShared: false });
   }
 
   async getCanvas(canvasId: string, userId: string): Promise<CanvasDto> {
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId },
-      relations: ['workspace', 'channel', 'content'],
+    const { canvas, role } = await this.ensureCanvasPermission(canvasId, userId, 'viewer');
+
+    await this.touchRecent(userId, canvasId);
+
+    return this.mapCanvasToDto(canvas, {
+      canEdit: role === 'editor',
+      isShared: canvas.visibility !== 'private',
     });
-
-    if (!canvas) {
-      throw new NotFoundException('Canvas not found');
-    }
-
-    const { workspaceId, channelId } = canvas;
-
-    await this.verifyChannelMembership(workspaceId, channelId, userId);
-
-    return this.mapCanvasToDto(canvas, canvas.content ?? null);
   }
 
   async updateCanvas(canvasId: string, userId: string, dto: UpdateCanvasDto): Promise<CanvasDto> {
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId },
-      relations: ['workspace', 'channel'],
-    });
-
-    if (!canvas) {
-      throw new NotFoundException('Canvas not found');
-    }
-
-    const { workspaceId, channelId } = canvas;
-
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
+    const { canvas, workspaceMember } = await this.ensureCanvasPermission(canvasId, userId, 'editor');
 
     if (dto.title !== undefined) {
       canvas.title = (dto.title.trim() || 'New page').slice(0, 500);
@@ -186,7 +287,10 @@ export class CanvasService {
     canvas.updatedById = workspaceMember.id;
     const savedCanvas = await this.canvasRepository.save(canvas);
 
-    return this.mapCanvasToDto(savedCanvas, canvas.content ?? null);
+    return this.mapCanvasToDto(savedCanvas, {
+      canEdit: true,
+      isShared: savedCanvas.visibility !== 'private',
+    });
   }
 
   async getCanvasesForChannel(channelId: string, userId: string): Promise<CanvasDto[]> {
@@ -203,191 +307,305 @@ export class CanvasService {
 
     await this.verifyChannelMembership(workspaceId, channelId, userId);
 
+    const permissions = await this.canvasPermissionRepository.find({
+      where: { type: 'channel', targetId: channelId },
+    });
+
+    if (!permissions.length) {
+      return [];
+    }
+
+    const canvasIds = permissions.map((p) => p.canvasId);
+
     const canvases = await this.canvasRepository.find({
-      where: { workspaceId, channelId },
+      where: {
+        id: In(canvasIds),
+        workspaceId,
+      },
       order: { createdAt: 'ASC' },
     });
 
-    return canvases.map((canvas) => this.mapCanvasToDto(canvas));
+    return canvases.map((canvas) =>
+      this.mapCanvasToDto(canvas, {
+        isShared: true,
+      })
+    );
   }
 
-  async saveCanvasContent(canvasId: string, userId: string, dto: SaveCanvasContentDto): Promise<CanvasDto> {
-    const canvas = await this.canvasRepository.findOne({
-      where: { id: canvasId },
-      relations: ['workspace', 'channel'],
-    });
+  async getCanvasPermissions(canvasId: string, userId: string): Promise<CanvasPermissionListDto> {
+    const { canvas } = await this.ensureCanvasPermission(canvasId, userId, 'editor');
 
-    if (!canvas) {
-      throw new NotFoundException('Canvas not found');
-    }
-
-    const { workspaceId, channelId } = canvas;
-
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
-
-    let content = await this.canvasContentRepository.findOne({
+    const permissions = await this.canvasPermissionRepository.find({
       where: { canvasId: canvas.id },
     });
 
-    if (!content) {
-      content = this.canvasContentRepository.create({
-        canvasId: canvas.id,
-        content: dto.content,
-        contentSchemaVersion: 1,
-        revision: 0,
-        version: null,
-        isDirty: true,
-        updatedById: workspaceMember.id,
-      });
-    } else {
-      content.content = dto.content;
-      content.revision += 1;
-      content.isDirty = true;
-      content.updatedById = workspaceMember.id;
+    const items: CanvasPermissionItemDto[] = [];
+    for (const perm of permissions) {
+      items.push(await this.mapPermissionToDto(perm));
     }
 
-    canvas.lastAutoSaveAt = new Date();
+    return {
+      visibility: canvas.visibility,
+      items,
+    };
+  }
+
+  async shareCanvasWithUser(
+    canvasId: string,
+    userId: string,
+    dto: ShareCanvasWithUserDto
+  ): Promise<CanvasPermissionListDto> {
+    const { canvas, workspaceMember } = await this.ensureCanvasPermission(canvasId, userId, 'editor');
+
+    const targetUser = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const targetWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: {
+        workspaceId: canvas.workspaceId,
+        userId: targetUser.id,
+        status: WorkspaceMemberStatusEnum.ACTIVE,
+      },
+    });
+
+    if (!targetWorkspaceMember) {
+      throw new ForbiddenException('User is not a member of this workspace');
+    }
+
+    let permission = await this.canvasPermissionRepository.findOne({
+      where: {
+        canvasId: canvas.id,
+        type: 'user',
+        targetId: targetWorkspaceMember.id,
+      },
+    });
+
+    if (!permission) {
+      permission = this.canvasPermissionRepository.create({
+        canvasId: canvas.id,
+        type: 'user',
+        targetId: targetWorkspaceMember.id,
+        role: dto.role,
+      });
+    } else {
+      permission.role = dto.role;
+    }
+
+    await this.canvasPermissionRepository.save(permission);
+
+    canvas.updatedById = workspaceMember.id;
+    await this.canvasRepository.save(canvas);
+
+    return this.getCanvasPermissions(canvas.id, userId);
+  }
+
+  async shareCanvasWithChannel(
+    canvasId: string,
+    userId: string,
+    dto: ShareCanvasWithChannelDto
+  ): Promise<CanvasPermissionListDto> {
+    const { canvas, workspaceMember } = await this.ensureCanvasPermission(canvasId, userId, 'editor');
+
+    const channel = await this.channelRepository.findOne({
+      where: { id: dto.channelId, workspaceId: canvas.workspaceId },
+    });
+
+    if (!channel) {
+      throw new NotFoundException('Channel not found in workspace');
+    }
+
+    let permission = await this.canvasPermissionRepository.findOne({
+      where: {
+        canvasId: canvas.id,
+        type: 'channel',
+        targetId: channel.id,
+      },
+    });
+
+    if (!permission) {
+      permission = this.canvasPermissionRepository.create({
+        canvasId: canvas.id,
+        type: 'channel',
+        targetId: channel.id,
+        role: dto.role,
+      });
+    } else {
+      permission.role = dto.role;
+    }
+
+    await this.canvasPermissionRepository.save(permission);
+
+    canvas.updatedById = workspaceMember.id;
+    await this.canvasRepository.save(canvas);
+
+    return this.getCanvasPermissions(canvas.id, userId);
+  }
+
+  async updateCanvasVisibility(
+    canvasId: string,
+    userId: string,
+    dto: UpdateCanvasVisibilityDto
+  ): Promise<CanvasPermissionListDto> {
+    const { canvas, workspaceMember } = await this.ensureCanvasPermission(canvasId, userId, 'editor');
+
+    canvas.visibility = dto.visibility;
     canvas.updatedById = workspaceMember.id;
 
-    const [savedCanvas, savedContent] = await Promise.all([
-      this.canvasRepository.save(canvas),
-      this.canvasContentRepository.save(content),
-    ]);
+    await this.canvasRepository.save(canvas);
 
-    return this.mapCanvasToDto(savedCanvas, savedContent);
+    return this.getCanvasPermissions(canvas.id, userId);
   }
 
-  async createCanvasVersion(canvasId: string, userId: string): Promise<CanvasVersionDto> {
-    await this.getCanvas(canvasId, userId);
+  async removeCanvasPermission(
+    canvasId: string,
+    userId: string,
+    permissionId: string
+  ): Promise<CanvasPermissionListDto> {
+    const { canvas } = await this.ensureCanvasPermission(canvasId, userId, 'editor');
 
-    const canvasEntity = await this.canvasRepository.findOne({
-      where: { id: canvasId },
-      relations: ['workspace', 'channel'],
-    });
-    if (!canvasEntity) {
-      throw new NotFoundException('Canvas not found');
-    }
-    const { workspaceId, channelId } = canvasEntity;
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
-
-    const content = await this.canvasContentRepository.findOne({
-      where: { canvasId: canvasEntity.id },
+    const permission = await this.canvasPermissionRepository.findOne({
+      where: { id: permissionId, canvasId: canvas.id },
     });
 
-    if (!content) {
-      throw new NotFoundException('Canvas content not found');
+    if (!permission) {
+      throw new NotFoundException('Permission not found');
     }
 
-    const latestVersion = await this.canvasVersionRepository.findOne({
-      where: { canvasId: canvasEntity.id },
-      order: { version: 'DESC' },
-    });
+    await this.canvasPermissionRepository.remove(permission);
 
-    const newVersionNumber = (latestVersion?.version ?? 0) + 1;
-
-    const version = this.canvasVersionRepository.create({
-      canvasId: canvasEntity.id,
-      version: newVersionNumber,
-      title: canvasEntity.title,
-      content: content.content,
-      contentSchemaVersion: content.contentSchemaVersion,
-      snapshotType: 'manual',
-      savedById: workspaceMember.id,
-    });
-
-    const savedVersion = await this.canvasVersionRepository.save(version);
-
-    content.version = newVersionNumber;
-    content.isDirty = false;
-    canvasEntity.lastPublishedVersion = newVersionNumber;
-    canvasEntity.updatedById = workspaceMember.id;
-
-    await Promise.all([this.canvasContentRepository.save(content), this.canvasRepository.save(canvasEntity)]);
-
-    return this.mapVersionToDto(savedVersion, true);
+    return this.getCanvasPermissions(canvas.id, userId);
   }
 
-  async getCanvasVersions(canvasId: string, userId: string): Promise<CanvasVersionDto[]> {
-    const canvas = await this.getCanvas(canvasId, userId);
-    const { workspaceId, channelId } = canvas;
-    await this.verifyChannelMembership(workspaceId, channelId, userId);
+  async getMyCanvases(workspaceId: string, userId: string): Promise<CanvasDto[]> {
+    const workspaceMember = await this.getWorkspaceMemberOrThrow(workspaceId, userId);
 
-    const versions = await this.canvasVersionRepository.find({
-      where: { canvasId: canvas.id },
-      order: { version: 'DESC' },
+    const canvases = await this.canvasRepository.find({
+      where: {
+        workspaceId,
+        ownerId: workspaceMember.id,
+        status: 'active',
+      },
+      order: { createdAt: 'DESC' },
     });
 
-    return versions.map((v) => this.mapVersionToDto(v));
+    return canvases.map((canvas) =>
+      this.mapCanvasToDto(canvas, {
+        canEdit: true,
+        isShared: canvas.visibility !== 'private',
+      })
+    );
   }
 
-  async getCanvasVersion(canvasId: string, versionNumber: number, userId: string): Promise<CanvasVersionDto> {
-    const canvas = await this.getCanvas(canvasId, userId);
-    const { workspaceId, channelId } = canvas;
-    await this.verifyChannelMembership(workspaceId, channelId, userId);
+  async getRecentCanvases(workspaceId: string, userId: string): Promise<CanvasDto[]> {
+    await this.getWorkspaceMemberOrThrow(workspaceId, userId);
 
-    const version = await this.canvasVersionRepository.findOne({
-      where: { canvasId: canvas.id, version: versionNumber },
+    const recents = await this.canvasRecentRepository.find({
+      where: { userId },
+      relations: ['canvas'],
+      order: { lastOpenedAt: 'DESC' },
     });
 
-    if (!version) {
-      throw new NotFoundException('Canvas version not found');
+    const result: CanvasDto[] = [];
+
+    for (const recent of recents) {
+      const canvas = recent.canvas;
+      if (!canvas || canvas.workspaceId !== workspaceId || canvas.status !== 'active') {
+        continue;
+      }
+
+      try {
+        const { role } = await this.ensureCanvasPermission(canvas.id, userId, 'viewer');
+        result.push(
+          this.mapCanvasToDto(canvas, {
+            canEdit: role === 'editor',
+            isShared: canvas.visibility !== 'private',
+          })
+        );
+      } catch {
+        // Bỏ qua canvas mà user không còn quyền
+      }
     }
 
-    return this.mapVersionToDto(version, true);
+    return result;
   }
 
-  async revertCanvasToVersion(canvasId: string, versionNumber: number, userId: string): Promise<CanvasDto> {
-    await this.getCanvas(canvasId, userId);
+  async getSharedWithMeCanvases(workspaceId: string, userId: string): Promise<CanvasDto[]> {
+    const workspaceMember = await this.getWorkspaceMemberOrThrow(workspaceId, userId);
 
-    const canvasEntity = await this.canvasRepository.findOne({
-      where: { id: canvasId },
-      relations: ['workspace', 'channel'],
+    const channelMemberships = await this.channelMemberRepository.find({
+      where: { memberId: workspaceMember.id },
     });
-    if (!canvasEntity) {
-      throw new NotFoundException('Canvas not found');
-    }
-    const { workspaceId, channelId } = canvasEntity;
-    const { workspaceMember } = await this.verifyChannelMembership(workspaceId, channelId, userId);
+    const channelIds = channelMemberships.map((m) => m.channelId);
 
-    const version = await this.canvasVersionRepository.findOne({
-      where: { canvasId: canvasEntity.id, version: versionNumber },
+    const userPermissions = await this.canvasPermissionRepository.find({
+      where: {
+        type: 'user',
+        targetId: workspaceMember.id,
+      },
     });
 
-    if (!version) {
-      throw new NotFoundException('Canvas version not found');
-    }
+    const channelPermissions = channelIds.length
+      ? await this.canvasPermissionRepository.find({
+          where: {
+            type: 'channel',
+            targetId: In(channelIds),
+          },
+        })
+      : [];
 
-    let content = await this.canvasContentRepository.findOne({
-      where: { canvasId: canvasEntity.id },
+    const permissionCanvasIds = [...userPermissions, ...channelPermissions].map((p) => p.canvasId);
+
+    const publicCanvases = await this.canvasRepository.find({
+      where: {
+        workspaceId,
+        visibility: 'public-workspace',
+      },
     });
 
-    if (!content) {
-      content = this.canvasContentRepository.create({
-        canvasId: canvasEntity.id,
-        content: version.content,
-        contentSchemaVersion: version.contentSchemaVersion,
-        revision: 0,
-        version: version.version,
-        isDirty: false,
-        updatedById: workspaceMember.id,
-      });
-    } else {
-      content.content = version.content;
-      content.contentSchemaVersion = version.contentSchemaVersion;
-      content.version = version.version;
-      content.isDirty = false;
-      content.updatedById = workspaceMember.id;
-      content.revision += 1;
+    const publicCanvasIds = publicCanvases.map((c) => c.id);
+
+    const allCanvasIds = Array.from(new Set([...permissionCanvasIds, ...publicCanvasIds]));
+
+    if (!allCanvasIds.length) {
+      return [];
     }
 
-    canvasEntity.lastPublishedVersion = version.version;
-    canvasEntity.updatedById = workspaceMember.id;
+    const canvases = await this.canvasRepository.find({
+      where: {
+        workspaceId,
+        id: In(allCanvasIds),
+        ownerId: Not(workspaceMember.id),
+        status: 'active',
+      },
+      order: { createdAt: 'DESC' },
+    });
 
-    const [savedCanvas, savedContent] = await Promise.all([
-      this.canvasRepository.save(canvasEntity),
-      this.canvasContentRepository.save(content),
-    ]);
+    const result: CanvasDto[] = [];
 
-    return this.mapCanvasToDto(savedCanvas, savedContent);
+    for (const canvas of canvases) {
+      const role = await this.getEffectiveCanvasRole(canvas, workspaceMember);
+      if (!role) {
+        continue;
+      }
+
+      result.push(
+        this.mapCanvasToDto(canvas, {
+          canEdit: role === 'editor',
+          isShared: true,
+        })
+      );
+    }
+
+    return result;
   }
+
+  /**
+   * Content and versions are now managed entirely by collab server.
+   * Các API content/version cũ đã được xoá.
+   */
 }
