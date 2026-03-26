@@ -16,6 +16,7 @@ import { ChannelsModule } from './modules/channels/channels.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { WsModule } from './modules/ws/ws.module';
 import { CanvasModule } from './modules/canvas/canvas.module';
+import { AgentModule } from './modules/agent/agent.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -41,6 +42,9 @@ import * as Joi from 'joi';
 
         // Stack Chat Service (gRPC client connection)
         STACK_CHAT_GRPC_URL: Joi.string().default('localhost:50051'),
+
+        // Stack Agent Service (gRPC client connection)
+        STACK_AGENT_GRPC_URL: Joi.string().default('localhost:50052'),
 
         // Database - PostgreSQL
         DB_POSTGRE_HOST: Joi.string().default('localhost'),
@@ -99,6 +103,7 @@ import * as Joi from 'joi';
     ChatModule,
     WsModule,
     CanvasModule,
+    AgentModule,
   ],
   providers: [
     {
