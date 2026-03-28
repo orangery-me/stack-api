@@ -28,6 +28,10 @@ export class AgentService {
 
   // ---- Sessions ----
 
+  async updateSession(userId: string, sessionId: string, title: string): Promise<SessionDto> {
+    return this.agentClientService.updateSession(userId, sessionId, title);
+  }
+
   async getOrCreateActiveSession(userId: string): Promise<SessionDto> {
     return this.agentClientService.getOrCreateActiveSession(userId);
   }

@@ -1,23 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
@@ -79,6 +61,16 @@ export class AgentController {
 
   // ---- Sessions ----
 
+  @Patch('sessions/:sessionId')
+  @ApiOperation({ summary: 'Update session metadata (e.g. title)' })
+  @ApiParam({ name: 'sessionId' })
+  @ApiBody({ schema: { properties: { title: { type: 'string' } } } })
+  async updateSession(@Req() req: Request, @Param('sessionId') sessionId: string, @Body() body: { title: string }) {
+    const userId = String((req.user as any).userId);
+    const session = await this.agentService.updateSession(userId, sessionId, body.title);
+    return new ResponseItem(session, 'Session updated');
+  }
+
   @Get('sessions/active')
   @ApiOperation({ summary: 'Get or create the active AI chat session for the current user' })
   async getOrCreateActiveSession(@Req() req: Request) {
@@ -113,7 +105,7 @@ export class AgentController {
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
     @Query('page') page = 1,
-    @Query('size') size = 50,
+    @Query('size') size = 50
   ) {
     const userId = String((req.user as any).userId);
     const result = await this.agentService.getSessionMessages(userId, sessionId, Number(page), Number(size));
@@ -123,11 +115,13 @@ export class AgentController {
   @Post('sessions/:sessionId/messages')
   @ApiOperation({ summary: 'Send a message in a session (non-streaming)' })
   @ApiParam({ name: 'sessionId' })
-  @ApiBody({ schema: { properties: { message: { type: 'string' }, provider: { type: 'string' }, model: { type: 'string' } } } })
+  @ApiBody({
+    schema: { properties: { message: { type: 'string' }, provider: { type: 'string' }, model: { type: 'string' } } },
+  })
   async sendMessage(
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
-    @Body() body: { message: string; provider?: string; model?: string },
+    @Body() body: { message: string; provider?: string; model?: string }
   ) {
     const userId = String((req.user as any).userId);
     const result = await this.agentService.sendMessage({ userId, sessionId, ...body });
@@ -137,12 +131,14 @@ export class AgentController {
   @Post('sessions/:sessionId/messages/stream')
   @ApiOperation({ summary: 'Send a message in a session (SSE streaming)' })
   @ApiParam({ name: 'sessionId' })
-  @ApiBody({ schema: { properties: { message: { type: 'string' }, provider: { type: 'string' }, model: { type: 'string' } } } })
+  @ApiBody({
+    schema: { properties: { message: { type: 'string' }, provider: { type: 'string' }, model: { type: 'string' } } },
+  })
   async sendMessageStream(
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
     @Body() body: { message: string; provider?: string; model?: string },
-    @Res() res: Response,
+    @Res() res: Response
   ): Promise<void> {
     const userId = String((req.user as any).userId);
     this.setSSEHeaders(res);

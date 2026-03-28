@@ -65,6 +65,7 @@ interface AgentServiceClient {
   askAgentStream(data: AskAgentRequest): Observable<AskAgentStreamChunk>;
 
   // Sessions
+  updateSession(data: { userId: string; sessionId: string; title: string }): Observable<SessionDto>;
   getOrCreateActiveSession(data: { userId: string }): Observable<SessionDto>;
   listSessions(data: { userId: string }): Observable<{ sessions: SessionDto[] }>;
   createSession(data: { userId: string; title?: string }): Observable<SessionDto>;
@@ -97,7 +98,7 @@ export class AgentClientService implements OnModuleInit {
   async askAgent(data: AskAgentRequest): Promise<AskAgentResponse> {
     try {
       return await lastValueFrom<AskAgentResponse>(
-        this.agentService.askAgent({ message: data.message, provider: data.provider, model: data.model }),
+        this.agentService.askAgent({ message: data.message, provider: data.provider, model: data.model })
       );
     } catch (error: any) {
       console.error('[AgentClientService] Error calling agent:', error?.message || error);
@@ -110,6 +111,10 @@ export class AgentClientService implements OnModuleInit {
   }
 
   // ---- Sessions ----
+
+  async updateSession(userId: string, sessionId: string, title: string): Promise<SessionDto> {
+    return lastValueFrom(this.agentService.updateSession({ userId, sessionId, title }));
+  }
 
   async getOrCreateActiveSession(userId: string): Promise<SessionDto> {
     return lastValueFrom(this.agentService.getOrCreateActiveSession({ userId }));
@@ -124,12 +129,7 @@ export class AgentClientService implements OnModuleInit {
     return lastValueFrom(this.agentService.createSession({ userId, title }));
   }
 
-  async getSessionMessages(
-    userId: string,
-    sessionId: string,
-    page = 1,
-    size = 50,
-  ): Promise<MessageListDto> {
+  async getSessionMessages(userId: string, sessionId: string, page = 1, size = 50): Promise<MessageListDto> {
     return lastValueFrom(this.agentService.getSessionMessages({ userId, sessionId, page, size }));
   }
 
