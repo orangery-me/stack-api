@@ -57,6 +57,13 @@ export interface SendMessageResponse {
   assistantMessage: ChatMessageDto;
 }
 
+export interface CanvasWriteRequest {
+  canvasContent: string;
+  userRequest: string;
+  provider?: string;
+  model?: string;
+}
+
 // ---- gRPC service interface ----
 
 interface AgentServiceClient {
@@ -81,6 +88,9 @@ interface AgentServiceClient {
   // Send
   sendMessage(data: SendMessageRequest): Observable<SendMessageResponse>;
   sendMessageStream(data: SendMessageRequest): Observable<AskAgentStreamChunk>;
+
+  // Canvas
+  canvasWrite(data: CanvasWriteRequest): Observable<AskAgentStreamChunk>;
 }
 
 @Injectable()
@@ -139,5 +149,9 @@ export class AgentClientService implements OnModuleInit {
 
   sendMessageStream(data: SendMessageRequest): Observable<AskAgentStreamChunk> {
     return this.agentService.sendMessageStream(data);
+  }
+
+  canvasWriteStream(data: CanvasWriteRequest): Observable<AskAgentStreamChunk> {
+    return this.agentService.canvasWrite(data);
   }
 }

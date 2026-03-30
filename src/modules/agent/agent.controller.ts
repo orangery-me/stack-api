@@ -6,6 +6,7 @@ import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { AgentService } from './agent.service';
 import { AgentRequestDto } from './dto/agent-request.dto';
 import { AgentResponseDto } from './dto/agent-response.dto';
+import { CanvasWriteRequest } from '../agent-client/agent-client.service';
 
 @ApiTags('agent')
 @Controller('/agent')
@@ -144,6 +145,52 @@ export class AgentController {
     this.setSSEHeaders(res);
 
     const stream$ = this.agentService.sendMessageStream({ userId, sessionId, ...body });
+
+    const subscription = stream$.subscribe({
+      next: (item) => {
+        if (item.done) {
+          res.write(`data: [DONE]\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ chunk: item.chunk })}\n\n`);
+        }
+      },
+      error: (err: any) => {
+        res.write(`data: ${JSON.stringify({ error: err?.message ?? 'Stream error' })}\n\n`);
+        res.end();
+      },
+      complete: () => res.end(),
+    });
+
+    res.on('close', () => subscription.unsubscribe());
+  }
+
+  // ---- Canvas AI Writer ----
+
+  @Post('canvas/write/stream')
+  @ApiOperation({ summary: 'Canvas AI Writer — generate content for the current canvas (SSE streaming)' })
+  @ApiBody({
+    schema: {
+      properties: {
+        canvasContent: { type: 'string' },
+        userRequest: { type: 'string' },
+        provider: { type: 'string' },
+        model: { type: 'string' },
+      },
+      required: ['userRequest'],
+    },
+  })
+  async canvasWriteStream(
+    @Body() body: { canvasContent?: string; userRequest: string; provider?: string; model?: string },
+    @Res() res: Response
+  ): Promise<void> {
+    this.setSSEHeaders(res);
+
+    const stream$ = this.agentService.canvasWriteStream({
+      canvasContent: body.canvasContent ?? '',
+      userRequest: body.userRequest,
+      provider: body.provider,
+      model: body.model,
+    } as CanvasWriteRequest);
 
     const subscription = stream$.subscribe({
       next: (item) => {

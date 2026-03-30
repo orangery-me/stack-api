@@ -5,6 +5,7 @@ import {
   AskAgentRequest,
   AskAgentResponse,
   AskAgentStreamChunk,
+  CanvasWriteRequest,
   SendMessageRequest,
   SendMessageResponse,
   SessionDto,
@@ -54,5 +55,9 @@ export class AgentService {
 
   sendMessageStream(data: SendMessageRequest): Observable<AskAgentStreamChunk> {
     return this.agentClientService.sendMessageStream(data);
+  }
+
+  canvasWriteStream(data: CanvasWriteRequest): Observable<AskAgentStreamChunk> {
+    return this.agentClientService.canvasWriteStream(data);
   }
 }
