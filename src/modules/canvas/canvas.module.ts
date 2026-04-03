@@ -24,4 +24,3 @@ import { WorkspaceCanvasController } from './workspace-canvas.controller';
   exports: [CanvasService],
 })
 export class CanvasModule {}
-

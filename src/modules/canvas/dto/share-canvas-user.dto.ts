@@ -16,4 +16,3 @@ export class ShareCanvasWithUserDto {
   @IsIn(['viewer', 'editor'])
   role: 'viewer' | 'editor';
 }
-

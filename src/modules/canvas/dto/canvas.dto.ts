@@ -1,5 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class CanvasOwnerDto {
+  @ApiProperty({ description: 'Workspace member ID của owner', example: '123e4567-e89b-12d3-a456-426614174000' })
+  id: string;
+
+  @ApiProperty({ description: 'Tên hiển thị của owner', example: 'John Doe' })
+  name: string;
+
+  @ApiPropertyOptional({
+    description: 'URL avatar của owner',
+    nullable: true,
+    example: 'https://example.com/avatar.jpg',
+  })
+  avatar?: string | null;
+}
+
 export class CanvasDto {
   @ApiProperty()
   id: string;
@@ -34,6 +49,12 @@ export class CanvasDto {
   @ApiProperty()
   ownerId: string;
 
+  @ApiPropertyOptional({
+    description: 'Thông tin owner của canvas (dùng để hiển thị ở FE)',
+    type: CanvasOwnerDto,
+  })
+  owner?: CanvasOwnerDto;
+
   @ApiProperty({
     description: 'Chế độ hiển thị của canvas',
     example: 'private',
@@ -60,4 +81,3 @@ export class CanvasDto {
   })
   isShared?: boolean;
 }
-

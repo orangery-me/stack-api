@@ -82,4 +82,3 @@ export class WorkspaceCanvasController {
     return new ResponseItem<CanvasDto[]>(result, 'Shared-with-me canvases fetched successfully');
   }
 }
-

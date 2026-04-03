@@ -57,7 +57,7 @@ export class CanvasGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     private readonly jwtTokenService: JwtTokenService,
     private readonly usersService: UsersService,
     private readonly canvasService: CanvasService
-  ) { }
+  ) {}
 
   afterInit() {
     console.log('[CanvasGateway] WebSocket gateway initialized');

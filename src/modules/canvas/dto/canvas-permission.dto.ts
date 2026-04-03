@@ -26,4 +26,3 @@ export class CanvasPermissionListDto {
   @ApiProperty({ type: [CanvasPermissionItemDto] })
   items: CanvasPermissionItemDto[];
 }
-

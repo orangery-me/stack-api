@@ -24,4 +24,3 @@ export class CreateCanvasDto {
   @IsOptional()
   initialContent?: any;
 }
-

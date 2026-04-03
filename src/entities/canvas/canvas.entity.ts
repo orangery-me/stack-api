@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { WorkspaceEntity } from '../workspace/workspace.entity';
 import { WorkspaceMemberEntity } from '../workspace/workspace-member.entity';
 
@@ -63,4 +71,3 @@ export class CanvasEntity {
   @Column({ type: 'timestamp', nullable: true })
   lastAutoSaveAt?: Date | null;
 }
-

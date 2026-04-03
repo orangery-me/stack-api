@@ -15,4 +15,3 @@ export class ShareCanvasWithChannelDto {
   @IsIn(['viewer', 'editor'])
   role: 'viewer' | 'editor';
 }
-

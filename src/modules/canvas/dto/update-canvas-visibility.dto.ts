@@ -9,4 +9,3 @@ export class UpdateCanvasVisibilityDto {
   @IsIn(['private', 'shared', 'public-workspace'])
   visibility: 'private' | 'shared' | 'public-workspace';
 }
-

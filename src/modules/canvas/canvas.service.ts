@@ -226,6 +226,14 @@ export class CanvasService {
   }
 
   private mapCanvasToDto(canvas: CanvasEntity, options?: { canEdit?: boolean; isShared?: boolean }): CanvasDto {
+    const owner = canvas.owner
+      ? {
+          id: canvas.owner.id,
+          name: canvas.owner.displayName || canvas.owner.user?.name || '',
+          avatar: canvas.owner.user?.avatar ?? null,
+        }
+      : undefined;
+
     return {
       id: canvas.id,
       workspaceId: canvas.workspaceId,
@@ -233,6 +241,7 @@ export class CanvasService {
       description: canvas.description ?? null,
       status: canvas.status,
       ownerId: canvas.ownerId,
+      owner,
       createdById: canvas.createdById,
       updatedById: canvas.updatedById ?? null,
       createdAt: canvas.createdAt,
@@ -490,6 +499,7 @@ export class CanvasService {
         ownerId: workspaceMember.id,
         status: 'active',
       },
+      relations: ['owner', 'owner.user'],
       order: { createdAt: 'DESC' },
     });
 
@@ -506,7 +516,7 @@ export class CanvasService {
 
     const recents = await this.canvasRecentRepository.find({
       where: { userId },
-      relations: ['canvas'],
+      relations: ['canvas', 'canvas.owner', 'canvas.owner.user'],
       order: { lastOpenedAt: 'DESC' },
     });
 
@@ -582,6 +592,7 @@ export class CanvasService {
         ownerId: Not(workspaceMember.id),
         status: 'active',
       },
+      relations: ['owner', 'owner.user'],
       order: { createdAt: 'DESC' },
     });
 

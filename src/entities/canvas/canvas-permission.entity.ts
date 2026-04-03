@@ -26,4 +26,3 @@ export class CanvasPermissionEntity {
   @CreateDateColumn()
   createdAt: Date;
 }
-
