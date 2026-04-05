@@ -62,6 +62,8 @@ export interface CanvasWriteRequest {
   userRequest: string;
   provider?: string;
   model?: string;
+  selectedText?: string;
+  editMode?: 'replace' | 'append';
 }
 
 // ---- gRPC service interface ----

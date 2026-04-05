@@ -175,12 +175,14 @@ export class AgentController {
         userRequest: { type: 'string' },
         provider: { type: 'string' },
         model: { type: 'string' },
+        selectedText: { type: 'string', description: 'Phase 3: đoạn văn được bôi đen' },
+        editMode: { type: 'string', enum: ['replace', 'append'], description: 'Phase 3: chế độ chỉnh sửa' },
       },
       required: ['userRequest'],
     },
   })
   async canvasWriteStream(
-    @Body() body: { canvasContent?: string; userRequest: string; provider?: string; model?: string },
+    @Body() body: { canvasContent?: string; userRequest: string; provider?: string; model?: string; selectedText?: string; editMode?: 'replace' | 'append' },
     @Res() res: Response
   ): Promise<void> {
     this.setSSEHeaders(res);
@@ -190,6 +192,8 @@ export class AgentController {
       userRequest: body.userRequest,
       provider: body.provider,
       model: body.model,
+      selectedText: body.selectedText,
+      editMode: body.editMode,
     } as CanvasWriteRequest);
 
     const subscription = stream$.subscribe({
