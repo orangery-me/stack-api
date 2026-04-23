@@ -7,13 +7,17 @@ import { AgentService } from './agent.service';
 import { AgentRequestDto } from './dto/agent-request.dto';
 import { AgentResponseDto } from './dto/agent-response.dto';
 import { CanvasWriteRequest } from '../agent-client/agent-client.service';
+import { CanvasService } from '../canvas/canvas.service';
 
 @ApiTags('agent')
 @Controller('/agent')
 @UseGuards(JwtAccessTokenGuard)
 @ApiBearerAuth('JWT-auth')
 export class AgentController {
-  constructor(private readonly agentService: AgentService) {}
+  constructor(
+    private readonly agentService: AgentService,
+    private readonly canvasService: CanvasService
+  ) {}
 
   // ---- Legacy single-shot ----
 
@@ -167,33 +171,37 @@ export class AgentController {
   // ---- Canvas AI Writer ----
 
   @Post('canvas/write/stream')
-  @ApiOperation({ summary: 'Canvas AI Writer — generate content for the current canvas (SSE streaming)' })
+  @ApiOperation({
+    summary: 'Canvas AI Writer - AI reads canvas via MCP and applies tool-based mutations directly',
+  })
   @ApiBody({
     schema: {
       properties: {
-        canvasContent: { type: 'string' },
+        canvasId: { type: 'string', description: 'Canvas document ID (required for MCP tool access)' },
+        canvasContent: { type: 'string', description: 'Fallback plain-text snapshot (used if MCP read fails)' },
         userRequest: { type: 'string' },
         provider: { type: 'string' },
         model: { type: 'string' },
-        selectedText: { type: 'string', description: 'Phase 3: đoạn văn được bôi đen' },
-        editMode: { type: 'string', enum: ['replace', 'append'], description: 'Phase 3: chế độ chỉnh sửa' },
       },
-      required: ['userRequest'],
+      required: ['canvasId', 'userRequest'],
     },
   })
   async canvasWriteStream(
-    @Body() body: { canvasContent?: string; userRequest: string; provider?: string; model?: string; selectedText?: string; editMode?: 'replace' | 'append' },
+    @Req() req: Request,
+    @Body() body: { canvasId: string; canvasContent?: string; userRequest: string; provider?: string; model?: string },
     @Res() res: Response
   ): Promise<void> {
+    const userId = String((req.user as any).userId);
+    await this.canvasService.authorizeCanvasAccess(body.canvasId, userId, 'editor');
+
     this.setSSEHeaders(res);
 
     const stream$ = this.agentService.canvasWriteStream({
+      canvasId: body.canvasId,
       canvasContent: body.canvasContent ?? '',
       userRequest: body.userRequest,
       provider: body.provider,
       model: body.model,
-      selectedText: body.selectedText,
-      editMode: body.editMode,
     } as CanvasWriteRequest);
 
     const subscription = stream$.subscribe({
@@ -212,6 +220,58 @@ export class AgentController {
     });
 
     res.on('close', () => subscription.unsubscribe());
+  }
+
+  @Post('sessions/:sessionId/canvas/messages/stream')
+  @ApiOperation({ summary: 'Canvas chat stream with session history + pending actions (Accept/Reject)' })
+  async canvasSessionMessageStream(
+    @Req() req: Request,
+    @Param('sessionId') sessionId: string,
+    @Body() body: { canvasId: string; canvasContent?: string; message: string; provider?: string; model?: string },
+    @Res() res: Response
+  ): Promise<void> {
+    const userId = String((req.user as any).userId);
+    this.setSSEHeaders(res);
+
+    const stream$ = this.agentService.canvasSessionMessageStream({
+      userId,
+      sessionId,
+      canvasId: body.canvasId,
+      canvasContent: body.canvasContent ?? '',
+      message: body.message,
+      provider: body.provider,
+      model: body.model,
+    });
+
+    const subscription = stream$.subscribe({
+      next: (item) => {
+        if (item.done) {
+          res.write(`data: [DONE]\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ chunk: item.chunk })}\n\n`);
+        }
+      },
+      error: (err: any) => {
+        res.write(`data: ${JSON.stringify({ error: err?.message ?? 'Stream error' })}\n\n`);
+        res.end();
+      },
+      complete: () => res.end(),
+    });
+
+    res.on('close', () => subscription.unsubscribe());
+  }
+
+  @Post('canvas/actions/apply')
+  @ApiOperation({ summary: 'Apply one approved canvas action from pending preview list' })
+  async applyCanvasAction(
+    @Body() body: { canvasId: string; actionName: string; actionArgsJson: string }
+  ): Promise<ResponseItem<{ ok: boolean; resultJson?: string; error?: string }>> {
+    const result = await this.agentService.canvasApplyAction({
+      canvasId: body.canvasId,
+      actionName: body.actionName,
+      actionArgsJson: body.actionArgsJson,
+    });
+    return new ResponseItem(result, result.ok ? 'Action applied' : 'Action failed');
   }
 
   // ---- Helpers ----

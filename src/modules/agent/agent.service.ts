@@ -6,10 +6,12 @@ import {
   AskAgentResponse,
   AskAgentStreamChunk,
   CanvasWriteRequest,
+  CanvasSessionMessageRequest,
+  CanvasApplyActionRequest,
+  CanvasApplyActionResponse,
   SendMessageRequest,
   SendMessageResponse,
   SessionDto,
-  ChatMessageDto,
   MessageListDto,
 } from '../agent-client/agent-client.service';
 
@@ -59,5 +61,13 @@ export class AgentService {
 
   canvasWriteStream(data: CanvasWriteRequest): Observable<AskAgentStreamChunk> {
     return this.agentClientService.canvasWriteStream(data);
+  }
+
+  canvasSessionMessageStream(data: CanvasSessionMessageRequest): Observable<AskAgentStreamChunk> {
+    return this.agentClientService.canvasSessionMessageStream(data);
+  }
+
+  async canvasApplyAction(data: CanvasApplyActionRequest): Promise<CanvasApplyActionResponse> {
+    return this.agentClientService.canvasApplyAction(data);
   }
 }

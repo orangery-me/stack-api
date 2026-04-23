@@ -17,6 +17,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { WsModule } from './modules/ws/ws.module';
 import { CanvasModule } from './modules/canvas/canvas.module';
 import { AgentModule } from './modules/agent/agent.module';
+import { McpModule } from './modules/mcp/mcp.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -88,6 +89,10 @@ import * as Joi from 'joi';
         APP_URL: Joi.string().optional().default('http://localhost:8105'),
         CLIENT_URL: Joi.string().optional().default('http://localhost:5173'),
 
+        // Canvas Collab Server (for MCP tools)
+        CANVAS_COLLAB_URL: Joi.string().default('http://localhost:1235'),
+        CANVAS_COLLAB_SECRET: Joi.string().optional().default(''),
+
         // Optional
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
         TZ: Joi.string().default('Asia/Ho_Chi_Minh'),
@@ -104,6 +109,7 @@ import * as Joi from 'joi';
     WsModule,
     CanvasModule,
     AgentModule,
+    McpModule,
   ],
   providers: [
     {

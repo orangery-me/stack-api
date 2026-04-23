@@ -213,6 +213,14 @@ export class CanvasService {
     return { canvas, workspaceMember, role };
   }
 
+  async authorizeCanvasAccess(
+    canvasId: string,
+    userId: string,
+    requiredRole: CanvasAccessRole
+  ): Promise<{ canvas: CanvasEntity; workspaceMember: WorkspaceMemberEntity; role: CanvasAccessRole }> {
+    return this.ensureCanvasPermission(canvasId, userId, requiredRole);
+  }
+
   private async touchRecent(userId: string, canvasId: string): Promise<void> {
     let recent = await this.canvasRecentRepository.findOne({
       where: { userId, canvasId },

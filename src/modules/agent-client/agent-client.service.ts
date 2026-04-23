@@ -58,12 +58,35 @@ export interface SendMessageResponse {
 }
 
 export interface CanvasWriteRequest {
+  canvasId: string;
   canvasContent: string;
   userRequest: string;
   provider?: string;
   model?: string;
   selectedText?: string;
   editMode?: 'replace' | 'append';
+}
+
+export interface CanvasSessionMessageRequest {
+  userId: string;
+  sessionId: string;
+  canvasId: string;
+  canvasContent: string;
+  message: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface CanvasApplyActionRequest {
+  canvasId: string;
+  actionName: string;
+  actionArgsJson: string;
+}
+
+export interface CanvasApplyActionResponse {
+  ok: boolean;
+  resultJson?: string;
+  error?: string;
 }
 
 // ---- gRPC service interface ----
@@ -92,7 +115,27 @@ interface AgentServiceClient {
   sendMessageStream(data: SendMessageRequest): Observable<AskAgentStreamChunk>;
 
   // Canvas
-  canvasWrite(data: CanvasWriteRequest): Observable<AskAgentStreamChunk>;
+  canvasWrite(data: {
+    canvasId: string;
+    canvasContent?: string;
+    userRequest: string;
+    provider?: string;
+    model?: string;
+  }): Observable<AskAgentStreamChunk>;
+  canvasSessionMessageStream(data: {
+    userId: string;
+    sessionId: string;
+    canvasId: string;
+    canvasContent?: string;
+    message: string;
+    provider?: string;
+    model?: string;
+  }): Observable<AskAgentStreamChunk>;
+  canvasApplyAction(data: {
+    canvasId: string;
+    actionName: string;
+    actionArgsJson: string;
+  }): Observable<CanvasApplyActionResponse>;
 }
 
 @Injectable()
@@ -154,6 +197,28 @@ export class AgentClientService implements OnModuleInit {
   }
 
   canvasWriteStream(data: CanvasWriteRequest): Observable<AskAgentStreamChunk> {
-    return this.agentService.canvasWrite(data);
+    return this.agentService.canvasWrite({
+      canvasId: data.canvasId,
+      canvasContent: data.canvasContent,
+      userRequest: data.userRequest,
+      provider: data.provider,
+      model: data.model,
+    });
+  }
+
+  canvasSessionMessageStream(data: CanvasSessionMessageRequest): Observable<AskAgentStreamChunk> {
+    return this.agentService.canvasSessionMessageStream({
+      userId: data.userId,
+      sessionId: data.sessionId,
+      canvasId: data.canvasId,
+      canvasContent: data.canvasContent,
+      message: data.message,
+      provider: data.provider,
+      model: data.model,
+    });
+  }
+
+  async canvasApplyAction(data: CanvasApplyActionRequest): Promise<CanvasApplyActionResponse> {
+    return lastValueFrom(this.agentService.canvasApplyAction(data));
   }
 }
