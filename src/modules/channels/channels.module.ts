@@ -12,6 +12,7 @@ import { ChannelsService } from './channels.service';
 import { ChannelsController } from './channels.controller';
 import { ChannelPolicy } from '../../policy/channel.policy';
 import { PermissionService } from '../../policy/permission.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PermissionService } from '../../policy/permission.service';
       WorkspaceMemberEntity,
       WorkspaceRoleEntity,
     ]),
+    NotificationsModule,
   ],
   controllers: [ChannelsController],
   providers: [ChannelsService, ChannelPolicy, PermissionService],

@@ -5,6 +5,7 @@ import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { ChannelsService } from './channels.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
+import { AddChannelMemberDto } from './dto/add-channel-member.dto';
 
 @ApiTags('channels')
 @Controller('workspaces/:workspaceId/channels')
@@ -84,5 +85,20 @@ export class ChannelsController {
     @Param('channelId') channelId: string
   ): Promise<ResponseItem<ChannelDto>> {
     return this.channelsService.getChannelById(workspaceId, channelId, request.user.userId);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Post(':channelId/members')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Add a member to channel' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiParam({ name: 'channelId', description: 'Channel ID' })
+  async addMember(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Param('channelId') channelId: string,
+    @Body() dto: AddChannelMemberDto
+  ): Promise<ResponseItem<{ message: string }>> {
+    return this.channelsService.addMember(workspaceId, channelId, request.user.userId, dto);
   }
 }

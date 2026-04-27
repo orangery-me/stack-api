@@ -12,8 +12,8 @@ import { ResponseItem } from '@app/common/dtos';
 import { UserEntity } from '@app/entities';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity, WorkspaceInviteEntity } from '@app/entities';
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum } from '@Constant/enums';
-import { EmailService } from '../email/email.service';
 import { ChannelsService } from '../channels/channels.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ChannelType } from '../channels/dto/create-channel.dto';
 import { WorkspacePolicy } from '../../policy/workspace.policy';
 import { DEFAULT_WORKSPACE_ROLES } from '../../policy/workspace-roles.config';
@@ -36,9 +36,9 @@ export class WorkspacesService {
     private readonly workspaceInviteRepository: Repository<WorkspaceInviteEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    private readonly emailService: EmailService,
     private readonly workspacePolicy: WorkspacePolicy,
-    private readonly channelsService: ChannelsService
+    private readonly channelsService: ChannelsService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   private generateSlug(name: string): string {
@@ -202,14 +202,22 @@ export class WorkspacesService {
 
         await this.workspaceInviteRepository.save(invite);
 
-        // Send invite email
-        await this.emailService.sendWorkspaceInviteEmail(
-          inviteItem.email,
-          createDto.displayName || user.name,
-          savedWorkspace.name,
-          inviteRole.name,
-          token
-        );
+        await this.notificationsService.publishEvent({
+          type: 'workspace.invited',
+          workspaceId: savedWorkspace.id,
+          actorUserId: userId,
+          entityType: 'workspace_invite',
+          entityId: invite.id,
+          payload: {
+            recipientUserIds: [invitedUser.id],
+            email: inviteItem.email,
+            inviterName: createDto.displayName || user.name,
+            workspaceName: savedWorkspace.name,
+            roleName: inviteRole.name,
+            inviteToken: token,
+            targetUrl: `/workspaces/invite/accept?token=${token}`,
+          },
+        });
       }
     }
 
@@ -329,13 +337,22 @@ export class WorkspacesService {
       where: { id: inviterMember.userId },
     });
 
-    await this.emailService.sendWorkspaceInviteEmail(
-      inviteDto.email,
-      inviterUser?.name || 'Someone',
-      workspace.name,
-      role.name,
-      token
-    );
+    await this.notificationsService.publishEvent({
+      type: 'workspace.invited',
+      workspaceId,
+      actorUserId: inviterUserId,
+      entityType: 'workspace_invite',
+      entityId: invite.id,
+      payload: {
+        recipientUserIds: [user.id],
+        email: inviteDto.email,
+        inviterName: inviterUser?.name || 'Someone',
+        workspaceName: workspace.name,
+        roleName: role.name,
+        inviteToken: token,
+        targetUrl: `/workspaces/invite/accept?token=${token}`,
+      },
+    });
 
     return new ResponseItem<{ message: string }>(
       { message: 'Invitation has been sent' },

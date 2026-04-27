@@ -13,9 +13,11 @@ import {
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum } from '@Constant/enums';
 import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
+import { AddChannelMemberDto } from './dto/add-channel-member.dto';
 import { ChannelPolicy } from '../../policy/channel.policy';
 import { PermissionService, ChannelPermissions } from '../../policy/permission.service';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel-roles.config';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ChannelsService {
@@ -33,7 +35,8 @@ export class ChannelsService {
     @InjectRepository(WorkspaceRoleEntity)
     private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
     private readonly channelPolicy: ChannelPolicy,
-    private readonly permissionService: PermissionService
+    private readonly permissionService: PermissionService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   async createChannel(
@@ -112,6 +115,74 @@ export class ChannelsService {
     );
 
     await this.channelMemberRepository.save(channelMembers);
+  }
+
+  async addMember(
+    workspaceId: string,
+    channelId: string,
+    actorUserId: string,
+    dto: AddChannelMemberDto
+  ): Promise<ResponseItem<{ message: string }>> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    const actorWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: actorUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['role', 'user'],
+    });
+    if (!actorWorkspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    const actorChannelMember = await this.channelMemberRepository.findOne({
+      where: { channelId, memberId: actorWorkspaceMember.id },
+    });
+    const canManage =
+      actorWorkspaceMember.role?.name === WorkspaceRoleNameEnum.OWNER ||
+      actorWorkspaceMember.role?.name === WorkspaceRoleNameEnum.ADMIN ||
+      actorChannelMember?.memberRole === 'manager';
+
+    if (!canManage) {
+      throw new ForbiddenException('You do not have permission to add members to this channel');
+    }
+
+    const targetWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: dto.userId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['user'],
+    });
+    if (!targetWorkspaceMember) {
+      throw new NotFoundException('Target user is not an active workspace member');
+    }
+
+    const existing = await this.channelMemberRepository.findOne({
+      where: { channelId, memberId: targetWorkspaceMember.id },
+    });
+    if (existing) {
+      throw new ForbiddenException('User is already a member of this channel');
+    }
+
+    await this.addSingleMemberToChannel(channelId, targetWorkspaceMember.id, dto.memberRole || 'member');
+
+    await this.notificationsService.publishEvent({
+      type: 'channel.member_added',
+      workspaceId,
+      actorUserId,
+      entityType: 'channel',
+      entityId: channel.id,
+      payload: {
+        recipientUserIds: [dto.userId],
+        actorName: actorWorkspaceMember.user?.name || 'Someone',
+        channelName: channel.name || 'channel',
+        channelId,
+        targetUrl: `/workspaces/${workspaceId}`,
+      },
+    });
+
+    return new ResponseItem({ message: 'Member added to channel' }, 'Member added to channel successfully');
   }
 
   private async addAllActiveMembersToChannel(
