@@ -17,6 +17,7 @@ export interface SendMessageResult {
   senderEmail: string;
   senderAvatar: string | null;
   content: string;
+  messageType: string;
   createdAt: string;
   channelId: string;
 }
@@ -111,8 +112,9 @@ export class ChatService {
       messageType: dto.messageType || 'text',
     });
 
+    const isSystemMessage = (dto.messageType || 'text') === 'system';
     const recipientUserIds = await this.resolveRecipientUserIds(channelId, userId);
-    if (recipientUserIds.length > 0) {
+    if (!isSystemMessage && recipientUserIds.length > 0) {
       await this.notificationsService.publishEvent({
         type: 'conversation.reply',
         workspaceId,
@@ -136,6 +138,7 @@ export class ChatService {
       senderEmail: result.senderEmail,
       senderAvatar: result.senderAvatar || null,
       content: result.content,
+      messageType: result.messageType || dto.messageType || 'text',
       createdAt: result.createdAt,
       channelId: result.channelId,
     };
@@ -175,6 +178,7 @@ export class ChatService {
           senderName: profile.name,
           senderEmail: profile.email,
           senderAvatar: profile.avatar || null,
+          messageType: message.messageType || 'text',
         });
       }
     }

@@ -18,6 +18,7 @@ import { ChannelPolicy } from '../../policy/channel.policy';
 import { PermissionService, ChannelPermissions } from '../../policy/permission.service';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel-roles.config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class ChannelsService {
@@ -36,7 +37,8 @@ export class ChannelsService {
     private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
     private readonly channelPolicy: ChannelPolicy,
     private readonly permissionService: PermissionService,
-    private readonly notificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService,
+    private readonly chatService: ChatService
   ) {}
 
   async createChannel(
@@ -180,6 +182,15 @@ export class ChannelsService {
         channelId,
         targetUrl: `/workspaces/${workspaceId}`,
       },
+    });
+
+    const systemMessageSenderUserId = actorChannelMember ? actorUserId : dto.userId;
+    const targetDisplayName = targetWorkspaceMember.user?.name || targetWorkspaceMember.user?.email || 'a teammate';
+    const actorDisplayName = actorWorkspaceMember.user?.name || 'Someone';
+
+    await this.chatService.sendMessage(workspaceId, channelId, systemMessageSenderUserId, {
+      content: `${actorDisplayName} added ${targetDisplayName} to this channel.`,
+      messageType: 'system',
     });
 
     return new ResponseItem({ message: 'Member added to channel' }, 'Member added to channel successfully');

@@ -226,6 +226,8 @@ export class WorkspacesService {
       name: savedWorkspace.name,
       slug: savedWorkspace.slug,
       ownerId: savedWorkspace.ownerId,
+      ownerName: user.name,
+      ownerEmail: user.email,
       plan: savedWorkspace.plan as WorkspacePlanEnum,
       settings: savedWorkspace.settings,
       createdAt: savedWorkspace.createdAt,
@@ -493,7 +495,7 @@ export class WorkspacesService {
     // Get all workspaces where user is a member
     const members = await this.workspaceMemberRepository.find({
       where: { userId, status: WorkspaceMemberStatusEnum.ACTIVE },
-      relations: ['workspace'],
+      relations: ['workspace', 'workspace.owner'],
       order: { joinedAt: 'DESC' },
     });
 
@@ -505,6 +507,8 @@ export class WorkspacesService {
         name: member.workspace.name,
         slug: member.workspace.slug,
         ownerId: member.workspace.ownerId,
+        ownerName: member.workspace.owner?.name,
+        ownerEmail: member.workspace.owner?.email,
         plan: member.workspace.plan as WorkspacePlanEnum,
         settings: member.workspace.settings,
         createdAt: member.workspace.createdAt,

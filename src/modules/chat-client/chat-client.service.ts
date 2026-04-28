@@ -20,6 +20,7 @@ export interface MessageResponse {
   senderEmail: string;
   senderAvatar: string;
   content: string;
+  messageType: string;
   createdAt: string;
   channelId: string;
 }

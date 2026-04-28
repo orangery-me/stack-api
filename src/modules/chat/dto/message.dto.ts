@@ -19,6 +19,9 @@ export class MessageDto {
   @ApiProperty({ description: 'Message content' })
   content: string;
 
+  @ApiProperty({ description: 'Message type', example: 'text' })
+  messageType: string;
+
   @ApiProperty({ description: 'Message creation timestamp' })
   createdAt: string;
 

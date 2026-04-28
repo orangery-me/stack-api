@@ -26,6 +26,18 @@ export class WorkspaceDto {
   })
   ownerId: string;
 
+  @ApiPropertyOptional({
+    description: 'Tên của owner',
+    example: 'John Doe',
+  })
+  ownerName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Email của owner',
+    example: 'john@example.com',
+  })
+  ownerEmail?: string;
+
   @ApiProperty({
     description: 'Gói dịch vụ',
     enum: WorkspacePlanEnum,

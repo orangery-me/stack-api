@@ -13,6 +13,7 @@ import { ChannelsController } from './channels.controller';
 import { ChannelPolicy } from '../../policy/channel.policy';
 import { PermissionService } from '../../policy/permission.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       WorkspaceRoleEntity,
     ]),
     NotificationsModule,
+    ChatModule,
   ],
   controllers: [ChannelsController],
   providers: [ChannelsService, ChannelPolicy, PermissionService],
