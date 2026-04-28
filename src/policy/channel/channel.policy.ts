@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ChannelEntity } from '@app/entities';
 import { ChannelDto } from '@app/modules/channels/dto/channel.dto';
-import { PermissionService, ChannelPermissions } from './permission.service';
+import { PermissionService, ChannelPermissions } from '../permission.service';
 import { ChannelType } from '@app/modules/channels/dto/create-channel.dto';
 
 @Injectable()

@@ -14,9 +14,9 @@ import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum } from '@Constant/enum
 import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
 import { AddChannelMemberDto } from './dto/add-channel-member.dto';
-import { ChannelPolicy } from '../../policy/channel.policy';
+import { ChannelPolicy } from '../../policy/channel/channel.policy';
 import { PermissionService, ChannelPermissions } from '../../policy/permission.service';
-import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel-roles.config';
+import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatService } from '../chat/chat.service';
 

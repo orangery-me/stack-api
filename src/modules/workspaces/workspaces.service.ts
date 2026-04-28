@@ -15,8 +15,8 @@ import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum } f
 import { ChannelsService } from '../channels/channels.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChannelType } from '../channels/dto/create-channel.dto';
-import { WorkspacePolicy } from '../../policy/workspace.policy';
-import { DEFAULT_WORKSPACE_ROLES } from '../../policy/workspace-roles.config';
+import { WorkspacePolicy } from '../../policy/workspace/workspace.policy';
+import { DEFAULT_WORKSPACE_ROLES } from '../../policy/workspace/workspace-roles.config';
 import { WorkspacePermissions } from '../../policy/permission.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';

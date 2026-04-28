@@ -1,4 +1,4 @@
-import type { ChannelPermissions } from './permission.service';
+import type { ChannelPermissions } from '../permission.service';
 
 export interface ChannelRoleConfig {
   name: 'manager' | 'member';

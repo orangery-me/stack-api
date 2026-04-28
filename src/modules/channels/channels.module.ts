@@ -10,7 +10,7 @@ import {
 } from '@app/entities';
 import { ChannelsService } from './channels.service';
 import { ChannelsController } from './channels.controller';
-import { ChannelPolicy } from '../../policy/channel.policy';
+import { ChannelPolicy } from '../../policy/channel/channel.policy';
 import { PermissionService } from '../../policy/permission.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ChatModule } from '../chat/chat.module';
