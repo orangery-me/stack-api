@@ -15,6 +15,7 @@ import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
 import { AddChannelMemberDto } from './dto/add-channel-member.dto';
 import { ChannelMemberDto } from './dto/channel-member.dto';
+import { UpdateChannelPermissionsDto } from './dto/update-channel-permissions.dto';
 import { ChannelPolicy } from '../../policy/channel/channel.policy';
 import { ChannelPermissions } from '../../policy/permission.service';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
@@ -273,6 +274,58 @@ export class ChannelsService {
     });
 
     return new ResponseItem({ message: 'Member removed from channel' }, 'Member removed from channel successfully');
+  }
+
+  async updateChannelPermissions(
+    workspaceId: string,
+    channelId: string,
+    actorUserId: string,
+    dto: UpdateChannelPermissionsDto
+  ): Promise<ResponseItem<ChannelDto>> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+    });
+
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    const { actorChannelMember, actorPermissions } = await this.getActorChannelPermissionContext(
+      workspaceId,
+      channelId,
+      actorUserId
+    );
+
+    if (!actorChannelMember) {
+      throw new ForbiddenException('You are not a member of this channel');
+    }
+
+    // channel:kick_member is a static capability that only the channel manager has.
+    const canManage = this.channelPermissionResolver.can(actorPermissions, 'channel:kick_member', channel.settings);
+
+    if (!canManage) {
+      throw new ForbiddenException('You do not have permission to update channel permissions');
+    }
+
+    const normalizedSettings = buildChannelSettings(channel.settings);
+    const currentPermissions = normalizedSettings.permissions;
+
+    const updatedPermissions = {
+      ...currentPermissions,
+      ...(dto.invitePolicy ? { invitePolicy: dto.invitePolicy } : {}),
+      ...(dto.postPolicy ? { postPolicy: dto.postPolicy } : {}),
+      ...(dto.pinMessagePolicy ? { pinMessagePolicy: dto.pinMessagePolicy } : {}),
+      ...(dto.threadPolicy ? { threadPolicy: dto.threadPolicy } : {}),
+    };
+
+    channel.settings = {
+      ...(channel.settings || {}),
+      permissions: updatedPermissions,
+    };
+
+    await this.channelRepository.save(channel);
+
+    return this.getChannelById(workspaceId, channelId, actorUserId);
   }
 
   private async addAllActiveMembersToChannel(
