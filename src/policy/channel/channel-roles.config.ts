@@ -24,6 +24,10 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
       actions: {
         'channel:view': true,
         'channel:join': true,
+        'channel:invite_member': true,
+        'channel:post_message': true,
+        'channel:pin_message': true,
+        'channel:create_thread': true,
         'message:create': true,
         'message:view': true,
       },

@@ -151,10 +151,6 @@ export class WorkspacesService {
       isDefault: true,
     });
 
-    // Initialize default channel roles for the main channel
-    const channelData = Array.isArray(mainChannelResult.data) ? mainChannelResult.data[0] : mainChannelResult.data;
-    await this.channelsService.initializeChannelRoles(channelData.id);
-
     // Process invites if provided
     if (createDto.invites && createDto.invites.length > 0) {
       for (const inviteItem of createDto.invites) {

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ChannelType } from './create-channel.dto';
+import { ChannelCapabilityMap, ChannelSettingsShape } from '../../../policy/channel/channel-permission.config';
 
 export class ChannelDto {
   @ApiProperty()
@@ -24,7 +25,10 @@ export class ChannelDto {
   metadata?: Record<string, any>;
 
   @ApiProperty({ required: false, type: 'object' })
-  settings?: Record<string, any>;
+  settings?: ChannelSettingsShape;
+
+  @ApiProperty({ required: false, type: 'object' })
+  permissions?: ChannelCapabilityMap;
 
   @ApiProperty({ required: false })
   isDefault?: boolean;

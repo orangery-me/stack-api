@@ -12,6 +12,7 @@ import { ChannelsService } from './channels.service';
 import { ChannelsController } from './channels.controller';
 import { ChannelPolicy } from '../../policy/channel/channel.policy';
 import { PermissionService } from '../../policy/permission.service';
+import { ChannelPermissionResolver } from '../../policy/channel/channel-permission.resolver';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ChatModule } from '../chat/chat.module';
 
@@ -29,7 +30,7 @@ import { ChatModule } from '../chat/chat.module';
     ChatModule,
   ],
   controllers: [ChannelsController],
-  providers: [ChannelsService, ChannelPolicy, PermissionService],
+  providers: [ChannelsService, ChannelPolicy, ChannelPermissionResolver, PermissionService],
   exports: [ChannelsService],
 })
 export class ChannelsModule {}
