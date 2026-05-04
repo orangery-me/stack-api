@@ -19,6 +19,7 @@ import { CanvasModule } from './modules/canvas/canvas.module';
 import { AgentModule } from './modules/agent/agent.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -112,6 +113,7 @@ import * as Joi from 'joi';
     AgentModule,
     McpModule,
     NotificationsModule,
+    TasksModule,
   ],
   providers: [
     {

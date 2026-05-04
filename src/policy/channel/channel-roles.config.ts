@@ -12,6 +12,7 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
       actions: {
         'channel:*': true,
         'message:*': true,
+        'task:*': true,
       },
       dataScopes: {
         channel: ['basic', 'settings'],
@@ -30,6 +31,11 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
         'channel:create_thread': true,
         'message:create': true,
         'message:view': true,
+        'task:create': true,
+        'task:view': true,
+        'task:comment': true,
+        'task:update_own': true,
+        'task:delete_own': true,
       },
       dataScopes: {
         channel: ['basic'],
@@ -37,3 +43,4 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
     },
   },
 ];
+

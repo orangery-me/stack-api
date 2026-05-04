@@ -13,3 +13,7 @@ export * from './canvas/canvas-recent.entity';
 export * from './notification/notification-event.entity';
 export * from './notification/notification-recipient.entity';
 export * from './notification/notification-outbox.entity';
+export * from './task/task-list.entity';
+export * from './task/task.entity';
+export * from './task/task-assignee.entity';
+export * from './task/task-comment.entity';
