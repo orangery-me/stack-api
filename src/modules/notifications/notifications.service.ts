@@ -42,6 +42,8 @@ export class NotificationsService {
         title: rule.title,
         body: rule.body,
         targetUrl: rule.targetUrl,
+        icon: rule.icon,
+        actorName: rule.actorName,
       },
     });
     const savedEvent = await this.notificationEventRepository.save(event);

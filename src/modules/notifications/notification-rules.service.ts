@@ -15,7 +15,9 @@ export class NotificationRulesService {
           recipientUserIds,
           deliveryChannels: ['in_app', 'email', 'websocket'],
           title: 'Workspace invitation',
-          body: `${payload?.inviterName || 'Someone'} invited you to ${payload?.workspaceName || 'a workspace'}.`,
+          body: `invited you to ${payload?.workspaceName || 'a workspace'}.`,
+          actorName: payload?.inviterName || 'Someone',
+          icon: 'fc-sms',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
       case 'channel.member_added':
@@ -23,7 +25,9 @@ export class NotificationRulesService {
           recipientUserIds,
           deliveryChannels: ['in_app', 'websocket'],
           title: 'Added to channel',
-          body: `${payload?.actorName || 'Someone'} added you to #${payload?.channelName || 'channel'}.`,
+          body: `added you to #${payload?.channelName || 'channel'}.`,
+          actorName: payload?.actorName || 'Someone',
+          icon: 'fc-collaboration',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
       case 'task.assigned':
@@ -31,15 +35,19 @@ export class NotificationRulesService {
           recipientUserIds,
           deliveryChannels: ['in_app', 'websocket'],
           title: 'New task assigned',
-          body: `${payload?.actorName || 'Someone'} assigned a task to you: ${payload?.taskTitle || 'Untitled Task'}.`,
+          body: `assigned a task to you: ${payload?.taskTitle || 'Untitled Task'}.`,
+          actorName: payload?.actorName || 'Someone',
+          icon: 'fc-briefcase',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
       case 'task.status_changed':
         return {
           recipientUserIds,
           deliveryChannels: ['in_app', 'websocket'],
-          title: 'Task status changed',
-          body: `${payload?.actorName || 'Someone'} changed the status of '${payload?.taskTitle || 'a task'}' to ${payload?.status || 'a new status'}.`,
+          title: 'Task status has been changed',
+          body: `changed the status of '${payload?.taskTitle || 'a task'}' to ${payload?.status || 'a new status'}.`,
+          actorName: payload?.actorName || 'Someone',
+          icon: 'fc-approval',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
       // case 'conversation.reply':
@@ -55,7 +63,9 @@ export class NotificationRulesService {
           recipientUserIds,
           deliveryChannels: ['in_app', 'websocket'],
           title: 'You were mentioned',
-          body: payload?.preview || `${payload?.actorName || 'A teammate'} mentioned you.`,
+          body: payload?.preview || `mentioned you.`,
+          actorName: payload?.actorName || 'A teammate',
+          icon: 'fc-sms',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
       default:
@@ -64,6 +74,8 @@ export class NotificationRulesService {
           deliveryChannels: ['in_app', 'websocket'],
           title: payload?.title || 'Notification',
           body: payload?.body || 'You have a new notification.',
+          actorName: payload?.actorName || 'System',
+          icon: 'fc-info',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
     }

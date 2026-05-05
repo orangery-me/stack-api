@@ -15,4 +15,6 @@ export interface NotificationRuleResult {
   title: string;
   body: string;
   targetUrl?: string;
+  actorName?: string;
+  icon?: string;
 }
