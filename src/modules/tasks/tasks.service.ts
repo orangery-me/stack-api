@@ -19,6 +19,10 @@ import { TaskFilterDto } from './dto/task-filter.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskListDto } from './dto/create-task-list.dto';
 import { UpdateTaskListDto } from './dto/update-task-list.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { PermissionService } from '../../policy/permission.service';
+import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
+import { canPerformTaskAction, TaskPermissionAction, TaskPermissionContext } from '../../policy/task/task-permission.config';
 
 @Injectable()
 export class TasksService {
@@ -37,9 +41,27 @@ export class TasksService {
     private readonly channelMemberRepository: Repository<ChannelMemberEntity>,
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
+    private readonly notificationsService: NotificationsService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────
+
+  private enforceTaskAction(
+    channelMember: ChannelMemberEntity,
+    action: TaskPermissionAction,
+    context?: TaskPermissionContext,
+  ) {
+    const roleConfig = DEFAULT_CHANNEL_ROLES.find(r => r.name === channelMember.memberRole);
+    if (!roleConfig) {
+      throw new ForbiddenException('Invalid channel role');
+    }
+    
+    const hasPermission = canPerformTaskAction(roleConfig.permissions, action, context);
+    if (!hasPermission) {
+      throw new ForbiddenException(`You don't have permission to perform '${action}' on this task`);
+    }
+  }
 
   private async resolveWorkspaceMember(workspaceId: string, userId: string): Promise<WorkspaceMemberEntity> {
     const member = await this.workspaceMemberRepository.findOne({
@@ -135,7 +157,8 @@ export class TasksService {
   ) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     await this.getChannelOrFail(channelId, workspaceId);
-    await this.verifyChannelMembership(channelId, workspaceMember.id);
+    const channelMember = await this.verifyChannelMembership(channelId, workspaceMember.id);
+    this.enforceTaskAction(channelMember, 'task:create');
 
     // Calculate next position
     const maxPos = await this.taskListRepository
@@ -181,7 +204,8 @@ export class TasksService {
   ) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
-    await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
+    const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
+    this.enforceTaskAction(channelMember, 'task:update');
 
     if (dto.name !== undefined) taskList.name = dto.name;
     if (dto.position !== undefined) taskList.position = dto.position;
@@ -198,11 +222,7 @@ export class TasksService {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
     const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
-
-    // Permission: only manager can delete task lists
-    if (channelMember.memberRole !== 'manager') {
-      throw new ForbiddenException('Only channel managers can delete task lists');
-    }
+    this.enforceTaskAction(channelMember, 'task:delete');
 
     // CASCADE will delete all tasks in this list
     await this.taskListRepository.remove(taskList);
@@ -219,7 +239,8 @@ export class TasksService {
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
-    await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
+    const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
+    this.enforceTaskAction(channelMember, 'task:create');
 
     const task = this.taskRepository.create({
       workspaceId,
@@ -246,6 +267,29 @@ export class TasksService {
         }),
       );
       await this.taskAssigneeRepository.save(assignees);
+
+      // Trigger notifications for new assignments
+      const targetUserIds = [];
+      for (const memberId of dto.assigneeIds) {
+        const member = await this.workspaceMemberRepository.findOne({ where: { id: memberId }, relations: ['user'] });
+        if (member?.user?.id && member.user.id !== userId) {
+          targetUserIds.push(member.user.id);
+        }
+      }
+
+      if (targetUserIds.length > 0) {
+        await this.notificationsService.publishEvent({
+          type: 'task.assigned',
+          workspaceId,
+          actorUserId: userId,
+          payload: {
+            recipientUserIds: targetUserIds,
+            actorName: workspaceMember.user?.name || 'Someone',
+            taskTitle: savedTask.title,
+            targetUrl: `/channels/${savedTask.channelId}`,
+          },
+        });
+      }
     }
 
     const fullTask = await this.getTaskOrFail(savedTask.id, workspaceId);
@@ -325,12 +369,12 @@ export class TasksService {
     const task = await this.getTaskOrFail(taskId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
-    const isManager = channelMember.memberRole === 'manager';
     const isOwner = task.createdById === workspaceMember.id;
+    const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
 
-    if (!isManager && !isOwner) {
-      throw new ForbiddenException('You do not have permission to update this task');
-    }
+    this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
+
+    const statusChanged = dto.status !== undefined && task.status !== dto.status;
 
     if (dto.title !== undefined) task.title = dto.title;
     if (dto.description !== undefined) task.description = dto.description;
@@ -342,6 +386,27 @@ export class TasksService {
     task.updatedById = workspaceMember.id;
 
     await this.taskRepository.save(task);
+
+    if (statusChanged && task.assignees?.length > 0) {
+      const assigneeUserIds = task.assignees
+        .map((a) => a.workspaceMember?.user?.id)
+        .filter((id) => id && id !== userId);
+
+      if (assigneeUserIds.length > 0) {
+        await this.notificationsService.publishEvent({
+          type: 'task.status_changed',
+          workspaceId,
+          actorUserId: userId,
+          payload: {
+            recipientUserIds: assigneeUserIds,
+            actorName: workspaceMember.user?.name || 'Someone',
+            taskTitle: task.title,
+            status: task.status,
+            targetUrl: `/channels/${task.channelId}`,
+          },
+        });
+      }
+    }
 
     const updatedTask = await this.getTaskOrFail(taskId, workspaceId);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'Task updated successfully');
@@ -356,12 +421,9 @@ export class TasksService {
     const task = await this.getTaskOrFail(taskId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
-    const isManager = channelMember.memberRole === 'manager';
     const isOwner = task.createdById === workspaceMember.id;
 
-    if (!isManager && !isOwner) {
-      throw new ForbiddenException('You do not have permission to delete this task');
-    }
+    this.enforceTaskAction(channelMember, 'task:delete', { isCreator: isOwner });
 
     task.deletedAt = new Date();
     task.updatedById = workspaceMember.id;
@@ -382,9 +444,10 @@ export class TasksService {
     const task = await this.getTaskOrFail(taskId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
-    if (channelMember.memberRole !== 'manager') {
-      throw new ForbiddenException('Only channel managers can assign tasks');
-    }
+    const isOwner = task.createdById === workspaceMember.id;
+    const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
+
+    this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
 
     const targetMember = await this.workspaceMemberRepository.findOne({
       where: { id: dto.workspaceMemberId, workspaceId, status: WorkspaceMemberStatusEnum.ACTIVE },
@@ -407,6 +470,21 @@ export class TasksService {
     });
     await this.taskAssigneeRepository.save(assignee);
 
+    const targetUser = targetMember.user;
+    if (targetUser && targetUser.id !== userId) {
+      await this.notificationsService.publishEvent({
+        type: 'task.assigned',
+        workspaceId,
+        actorUserId: userId,
+        payload: {
+          recipientUserIds: [targetUser.id],
+          actorName: workspaceMember.user?.name || 'Someone',
+          taskTitle: task.title,
+          targetUrl: `/channels/${task.channelId}`,
+        },
+      });
+    }
+
     const updatedTask = await this.getTaskOrFail(taskId, workspaceId);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'User assigned to task');
   }
@@ -421,11 +499,13 @@ export class TasksService {
     const task = await this.getTaskOrFail(taskId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
-    const isManager = channelMember.memberRole === 'manager';
+    const isOwner = task.createdById === workspaceMember.id;
     const isSelf = memberId === workspaceMember.id;
+    const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
 
-    if (!isManager && !isSelf) {
-      throw new ForbiddenException('You do not have permission to unassign this user');
+    // If unassigning someone else, you must have update rights on the task
+    if (!isSelf) {
+      this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
     }
 
     const assignee = await this.taskAssigneeRepository.findOne({

@@ -11,6 +11,8 @@ import {
 } from '@app/entities';
 import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { PermissionService } from '../../policy/permission.service';
 
 @Module({
   imports: [
@@ -23,9 +25,10 @@ import { TasksController } from './tasks.controller';
       ChannelMemberEntity,
       WorkspaceMemberEntity,
     ]),
+    NotificationsModule,
   ],
   controllers: [TasksController],
-  providers: [TasksService],
+  providers: [TasksService, PermissionService],
   exports: [TasksService],
 })
 export class TasksModule {}

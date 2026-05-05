@@ -26,6 +26,22 @@ export class NotificationRulesService {
           body: `${payload?.actorName || 'Someone'} added you to #${payload?.channelName || 'channel'}.`,
           targetUrl: payload?.targetUrl || '/workspaces',
         };
+      case 'task.assigned':
+        return {
+          recipientUserIds,
+          deliveryChannels: ['in_app', 'websocket'],
+          title: 'New task assigned',
+          body: `${payload?.actorName || 'Someone'} assigned a task to you: ${payload?.taskTitle || 'Untitled Task'}.`,
+          targetUrl: payload?.targetUrl || '/workspaces',
+        };
+      case 'task.status_changed':
+        return {
+          recipientUserIds,
+          deliveryChannels: ['in_app', 'websocket'],
+          title: 'Task status changed',
+          body: `${payload?.actorName || 'Someone'} changed the status of '${payload?.taskTitle || 'a task'}' to ${payload?.status || 'a new status'}.`,
+          targetUrl: payload?.targetUrl || '/workspaces',
+        };
       // case 'conversation.reply':
       //   return {
       //     recipientUserIds,
