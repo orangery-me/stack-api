@@ -12,7 +12,6 @@ import {
 import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { PermissionService } from '../../policy/permission.service';
 
 @Module({
   imports: [
@@ -28,7 +27,7 @@ import { PermissionService } from '../../policy/permission.service';
     NotificationsModule,
   ],
   controllers: [TasksController],
-  providers: [TasksService, PermissionService],
+  providers: [TasksService],
   exports: [TasksService],
 })
 export class TasksModule {}

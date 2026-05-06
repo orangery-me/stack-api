@@ -19,8 +19,10 @@ import { TaskFilterDto } from './dto/task-filter.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskListDto } from './dto/create-task-list.dto';
 import { UpdateTaskListDto } from './dto/update-task-list.dto';
+import { CreateTaskCommentDto } from './dto/create-task-comment.dto';
+import { UpdateTaskCommentDto } from './dto/update-task-comment.dto';
+import { TaskCommentDto } from './dto/task-comment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PermissionService } from '../../policy/permission.service';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
 import { canPerformTaskAction, TaskPermissionAction, TaskPermissionContext } from '../../policy/task/task-permission.config';
 
@@ -42,7 +44,6 @@ export class TasksService {
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
     private readonly notificationsService: NotificationsService,
-    private readonly permissionService: PermissionService,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -145,6 +146,73 @@ export class TasksService {
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
+  }
+
+  private mapCommentToDto(comment: TaskCommentEntity): TaskCommentDto {
+    return {
+      id: comment.id,
+      taskId: comment.taskId,
+      workspaceMemberId: comment.workspaceMemberId,
+      userId: comment.workspaceMember?.userId,
+      authorName: comment.workspaceMember?.user?.name,
+      authorEmail: comment.workspaceMember?.user?.email,
+      authorAvatar: comment.workspaceMember?.user?.avatar || null,
+      content: comment.content,
+      mentions: comment.mentions || [],
+      parentCommentId: comment.parentCommentId ?? null,
+      createdAt: comment.createdAt,
+      editedAt: comment.editedAt ?? null,
+      deletedAt: comment.deletedAt ?? null,
+    };
+  }
+
+  private async getCommentOrFail(commentId: string, taskId: string): Promise<TaskCommentEntity> {
+    const comment = await this.taskCommentRepository.findOne({
+      where: { id: commentId, taskId },
+      relations: ['workspaceMember', 'workspaceMember.user'],
+    });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+    return comment;
+  }
+
+  private async normalizeMentionMemberIds(
+    workspaceId: string,
+    channelId: string,
+    mentionMemberIds: string[] = [],
+  ): Promise<string[]> {
+    if (!mentionMemberIds.length) return [];
+    const uniqueIds = Array.from(new Set(mentionMemberIds.filter(Boolean)));
+    const validMemberIds: string[] = [];
+    for (const memberId of uniqueIds) {
+      const member = await this.workspaceMemberRepository.findOne({
+        where: { id: memberId, workspaceId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      });
+      if (!member) continue;
+      const channelMember = await this.channelMemberRepository.findOne({
+        where: { channelId, memberId },
+      });
+      if (channelMember) {
+        validMemberIds.push(memberId);
+      }
+    }
+    return validMemberIds;
+  }
+
+  private async resolveMentionRecipientUserIds(
+    mentionMemberIds: string[],
+    actorUserId: string,
+  ): Promise<string[]> {
+    if (!mentionMemberIds.length) return [];
+    const members = await this.workspaceMemberRepository.find({
+      where: mentionMemberIds.map((id) => ({ id })),
+      relations: ['user'],
+    });
+    const recipientUserIds = members
+      .map((member) => member.user?.id)
+      .filter((id) => Boolean(id) && id !== actorUserId);
+    return Array.from(new Set(recipientUserIds));
   }
 
   // ─── TaskList CRUD ────────────────────────────────────────
@@ -521,6 +589,168 @@ export class TasksService {
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'User unassigned from task');
   }
 
+  // ─── Task Comments ───────────────────────────────────────
+
+  async addComment(
+    workspaceId: string,
+    taskId: string,
+    userId: string,
+    dto: CreateTaskCommentDto,
+  ): Promise<ResponseItem<TaskCommentDto>> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+    const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
+    this.enforceTaskAction(channelMember, 'task:comment');
+
+    if (dto.parentCommentId) {
+      const parent = await this.getCommentOrFail(dto.parentCommentId, task.id);
+      if (parent.deletedAt) {
+        throw new NotFoundException('Parent comment is deleted');
+      }
+    }
+
+    const mentionMemberIds = await this.normalizeMentionMemberIds(
+      workspaceId,
+      task.channelId,
+      dto.mentions || [],
+    );
+
+    const comment = this.taskCommentRepository.create({
+      taskId: task.id,
+      workspaceMemberId: workspaceMember.id,
+      content: dto.content.trim(),
+      mentions: mentionMemberIds,
+      parentCommentId: dto.parentCommentId || null,
+    });
+    const saved = await this.taskCommentRepository.save(comment);
+    const fullComment = await this.getCommentOrFail(saved.id, task.id);
+
+    const recipientUserIds = await this.resolveMentionRecipientUserIds(mentionMemberIds, userId);
+    if (recipientUserIds.length > 0) {
+      await this.notificationsService.publishEvent({
+        type: 'task.comment_mentioned',
+        workspaceId,
+        actorUserId: userId,
+        entityType: 'task_comment',
+        entityId: saved.id,
+        payload: {
+          recipientUserIds,
+          actorName: workspaceMember.user?.name || 'Someone',
+          taskTitle: task.title,
+          preview: dto.content.slice(0, 180),
+          channelId: task.channelId,
+          taskId: task.id,
+          commentId: saved.id,
+          targetUrl: `/workspaces/${workspaceId}`,
+        },
+      });
+    }
+
+    return new ResponseItem<TaskCommentDto>(this.mapCommentToDto(fullComment), 'Comment added successfully');
+  }
+
+  async getComments(
+    workspaceId: string,
+    taskId: string,
+    userId: string,
+  ): Promise<ResponseItem<TaskCommentDto[]>> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+    const task = await this.getTaskOrFail(taskId, workspaceId);
+    await this.verifyChannelMembership(task.channelId, workspaceMember.id);
+
+    const comments = await this.taskCommentRepository.find({
+      where: { taskId: task.id },
+      relations: ['workspaceMember', 'workspaceMember.user'],
+      order: { createdAt: 'ASC' },
+    });
+    return new ResponseItem<TaskCommentDto[]>(
+      comments.map((comment) => this.mapCommentToDto(comment)),
+      'Task comments fetched successfully',
+    );
+  }
+
+  async updateComment(
+    workspaceId: string,
+    taskId: string,
+    commentId: string,
+    userId: string,
+    dto: UpdateTaskCommentDto,
+  ): Promise<ResponseItem<TaskCommentDto>> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+    const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
+    this.enforceTaskAction(channelMember, 'task:comment');
+
+    const comment = await this.getCommentOrFail(commentId, task.id);
+    const isAuthor = comment.workspaceMemberId === workspaceMember.id;
+    const canManageAll = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole)?.permissions?.actions?.['task:*'] === true;
+    if (!isAuthor && !canManageAll) {
+      throw new ForbiddenException('You can only edit your own comments');
+    }
+    if (comment.deletedAt) {
+      throw new NotFoundException('Comment is deleted');
+    }
+
+    if (dto.content !== undefined) {
+      comment.content = dto.content.trim();
+      comment.editedAt = new Date();
+    }
+    if (dto.mentions !== undefined) {
+      comment.mentions = await this.normalizeMentionMemberIds(workspaceId, task.channelId, dto.mentions);
+    }
+    await this.taskCommentRepository.save(comment);
+
+    const recipientUserIds = await this.resolveMentionRecipientUserIds(comment.mentions || [], userId);
+    if (recipientUserIds.length > 0) {
+      await this.notificationsService.publishEvent({
+        type: 'task.comment_mentioned',
+        workspaceId,
+        actorUserId: userId,
+        entityType: 'task_comment',
+        entityId: comment.id,
+        payload: {
+          recipientUserIds,
+          actorName: workspaceMember.user?.name || 'Someone',
+          taskTitle: task.title,
+          preview: comment.content.slice(0, 180),
+          channelId: task.channelId,
+          taskId: task.id,
+          commentId: comment.id,
+          targetUrl: `/workspaces/${workspaceId}`,
+        },
+      });
+    }
+
+    const updated = await this.getCommentOrFail(comment.id, task.id);
+    return new ResponseItem<TaskCommentDto>(this.mapCommentToDto(updated), 'Comment updated successfully');
+  }
+
+  async deleteComment(
+    workspaceId: string,
+    taskId: string,
+    commentId: string,
+    userId: string,
+  ): Promise<ResponseItem<{ message: string }>> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+    const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
+    this.enforceTaskAction(channelMember, 'task:comment');
+
+    const comment = await this.getCommentOrFail(commentId, task.id);
+    const isAuthor = comment.workspaceMemberId === workspaceMember.id;
+    const canManageAll = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole)?.permissions?.actions?.['task:*'] === true;
+    if (!isAuthor && !canManageAll) {
+      throw new ForbiddenException('You can only delete your own comments');
+    }
+    if (comment.deletedAt) {
+      return new ResponseItem({ message: 'Comment already deleted' }, 'Comment deleted successfully');
+    }
+
+    comment.deletedAt = new Date();
+    await this.taskCommentRepository.save(comment);
+    return new ResponseItem({ message: 'Comment deleted' }, 'Comment deleted successfully');
+  }
+
   // ─── My Tasks ─────────────────────────────────────────────
 
   async getMyTasks(
@@ -551,6 +781,19 @@ export class TasksService {
     }
     if (filters.priority) {
       query.andWhere('task.priority = :priority', { priority: filters.priority });
+    }
+    if (filters.channelId) {
+      query.andWhere('task.channelId = :channelId', { channelId: filters.channelId });
+    }
+    if (filters.dueFrom) {
+      query.andWhere('task.dueDate IS NOT NULL').andWhere('task.dueDate >= :dueFrom', {
+        dueFrom: new Date(filters.dueFrom),
+      });
+    }
+    if (filters.dueTo) {
+      query.andWhere('task.dueDate IS NOT NULL').andWhere('task.dueDate <= :dueTo', {
+        dueTo: new Date(filters.dueTo),
+      });
     }
 
     query.orderBy('task.createdAt', 'DESC');

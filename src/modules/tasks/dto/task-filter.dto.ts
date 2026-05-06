@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsEnum, IsUUID, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsEnum, IsUUID, IsInt, Min, Max, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TaskStatus, TaskPriority } from '@app/entities/task/task.entity';
 
@@ -18,6 +18,21 @@ export class TaskFilterDto {
   @IsOptional()
   @IsUUID()
   assigneeId?: string;
+
+  @ApiProperty({ required: false, description: 'Filter by channel ID' })
+  @IsOptional()
+  @IsUUID()
+  channelId?: string;
+
+  @ApiProperty({ required: false, description: 'Filter due date from (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  dueFrom?: string;
+
+  @ApiProperty({ required: false, description: 'Filter due date to (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  dueTo?: string;
 
   @ApiProperty({ required: false, default: 1 })
   @IsOptional()
