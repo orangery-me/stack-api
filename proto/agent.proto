@@ -1,0 +1,176 @@
+syntax = "proto3";
+
+package agent;
+
+service AgentService {
+  // Legacy single-shot endpoints (no session context)
+  rpc AskAgent (AskAgentRequest) returns (AskAgentResponse);
+  rpc AskAgentStream (AskAgentRequest) returns (stream AskAgentStreamChunk);
+
+  // Session management
+  rpc GetOrCreateActiveSession (UserRequest) returns (Session);
+  rpc ListSessions (UserRequest) returns (SessionList);
+  rpc CreateSession (CreateSessionRequest) returns (Session);
+
+  // Message history
+  rpc GetSessionMessages (GetSessionMessagesRequest) returns (MessageList);
+
+  // Update session metadata
+  rpc UpdateSession (UpdateSessionRequest) returns (Session);
+
+  // Send with session context
+  rpc SendMessage (SendMessageRequest) returns (SendMessageResponse);
+  rpc SendMessageStream (SendMessageRequest) returns (stream AskAgentStreamChunk);
+
+  // Canvas AI Writer
+  rpc CanvasWrite (CanvasWriteRequest) returns (stream AskAgentStreamChunk);
+  rpc CanvasSessionMessageStream (CanvasSessionMessageRequest) returns (stream AskAgentStreamChunk);
+  rpc CanvasApplyAction (CanvasApplyActionRequest) returns (CanvasApplyActionResponse);
+  rpc TaskSessionMessageStream (TaskSessionMessageRequest) returns (stream AskAgentStreamChunk);
+  rpc TaskApplyAction (TaskApplyActionRequest) returns (TaskApplyActionResponse);
+}
+
+// ---- Legacy ----
+
+message AskAgentRequest {
+  string message = 1;
+  string provider = 2;  // "openai" | "gemini"
+  string model = 3;     // e.g. "gpt-4o", "gemini-1.5-pro"
+}
+
+message AskAgentResponse {
+  string response = 1;
+}
+
+message AskAgentStreamChunk {
+  string chunk = 1;
+  bool done = 2;
+}
+
+// ---- Session ----
+
+message UserRequest {
+  string user_id = 1;
+}
+
+message CreateSessionRequest {
+  string user_id = 1;
+  string title = 2;
+}
+
+message UpdateSessionRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string title = 3;
+}
+
+message Session {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  bool is_active = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+message SessionList {
+  repeated Session sessions = 1;
+}
+
+// ---- Messages ----
+
+message GetSessionMessagesRequest {
+  string user_id = 1;
+  string session_id = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
+
+message ChatMessage {
+  string id = 1;
+  string session_id = 2;
+  string role = 3;
+  string content = 4;
+  string created_at = 5;
+}
+
+message MessageList {
+  repeated ChatMessage messages = 1;
+  int32 total = 2;
+  bool has_more = 3;
+}
+
+// ---- Send ----
+
+message SendMessageRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string message = 3;
+  string provider = 4;
+  string model = 5;
+}
+
+message SendMessageResponse {
+  string response = 1;
+  ChatMessage assistant_message = 2;
+}
+
+// ---- Canvas Write ----
+
+message CanvasWriteRequest {
+  string canvas_id = 1;
+  string canvas_content = 2;
+  string user_request = 3;
+  string provider = 4;
+  string model = 5;
+}
+
+message CanvasSessionMessageRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string canvas_id = 3;
+  string canvas_content = 4;
+  string message = 5;
+  string provider = 6;
+  string model = 7;
+}
+
+message CanvasApplyActionRequest {
+  string canvas_id = 1;
+  string action_name = 2;
+  string action_args_json = 3;
+}
+
+message CanvasApplyActionResponse {
+  bool ok = 1;
+  string result_json = 2;
+  string error = 3;
+}
+
+message TaskSessionMessageRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string workspace_id = 3;
+  string channel_id = 4;
+  string task_list_id = 5;
+  string canvas_id = 6;
+  string canvas_content = 7;
+  string message = 8;
+  string provider = 9;
+  string model = 10;
+}
+
+message TaskApplyActionRequest {
+  string user_id = 1;
+  string workspace_id = 2;
+  string channel_id = 3;
+  string task_list_id = 4;
+  string action_name = 5;
+  string action_args_json = 6;
+}
+
+message TaskApplyActionResponse {
+  bool ok = 1;
+  string result_json = 2;
+  string error = 3;
+}

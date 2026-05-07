@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { ChannelsService } from './channels.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
+import { AddChannelMemberDto } from './dto/add-channel-member.dto';
+import { ChannelMemberDto } from './dto/channel-member.dto';
+import { UpdateChannelPermissionsDto } from './dto/update-channel-permissions.dto';
 
 @ApiTags('channels')
 @Controller('workspaces/:workspaceId/channels')
@@ -84,5 +87,78 @@ export class ChannelsController {
     @Param('channelId') channelId: string
   ): Promise<ResponseItem<ChannelDto>> {
     return this.channelsService.getChannelById(workspaceId, channelId, request.user.userId);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Post(':channelId/members')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Add a member to channel' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiParam({ name: 'channelId', description: 'Channel ID' })
+  async addMember(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Param('channelId') channelId: string,
+    @Body() dto: AddChannelMemberDto
+  ): Promise<ResponseItem<{ message: string }>> {
+    return this.channelsService.addMember(workspaceId, channelId, request.user.userId, dto);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Get(':channelId/members')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get members of a channel' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiParam({ name: 'channelId', description: 'Channel ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Channel members fetched successfully',
+    type: [ChannelMemberDto],
+  })
+  async getChannelMembers(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Param('channelId') channelId: string
+  ): Promise<ResponseItem<ChannelMemberDto[]>> {
+    return this.channelsService.getChannelMembers(workspaceId, channelId, request.user.userId);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Delete(':channelId/members/:userId')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Remove a member from channel' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiParam({ name: 'channelId', description: 'Channel ID' })
+  @ApiParam({ name: 'userId', description: 'User ID to remove from the channel' })
+  async kickMember(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Param('channelId') channelId: string,
+    @Param('userId') userId: string
+  ): Promise<ResponseItem<{ message: string }>> {
+    return this.channelsService.kickMember(workspaceId, channelId, request.user.userId, userId);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Patch(':channelId/settings/permissions')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update channel dynamic permissions (manager only)' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiParam({ name: 'channelId', description: 'Channel ID' })
+  @ApiBody({ type: UpdateChannelPermissionsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Channel updated successfully',
+    type: ChannelDto,
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - not a channel manager' })
+  @ApiResponse({ status: 404, description: 'Channel not found' })
+  async updateChannelPermissions(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Param('channelId') channelId: string,
+    @Body() dto: UpdateChannelPermissionsDto
+  ): Promise<ResponseItem<ChannelDto>> {
+    return this.channelsService.updateChannelPermissions(workspaceId, channelId, request.user.userId, dto);
   }
 }

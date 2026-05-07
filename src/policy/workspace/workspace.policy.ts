@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { WorkspaceEntity } from '@app/entities';
 import { WorkspaceDto } from '@app/modules/workspaces/dto/workspace.dto';
-import { PermissionService, WorkspacePermissions } from './permission.service';
+import { PermissionService, WorkspacePermissions } from '../permission.service';
 import { WorkspacePlanEnum } from '@Constant/enums';
 
 @Injectable()

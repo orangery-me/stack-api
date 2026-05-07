@@ -13,9 +13,16 @@ import {
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum } from '@Constant/enums';
 import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
 import { ChannelDto } from './dto/channel.dto';
-import { ChannelPolicy } from '../../policy/channel.policy';
-import { PermissionService, ChannelPermissions } from '../../policy/permission.service';
-import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel-roles.config';
+import { AddChannelMemberDto } from './dto/add-channel-member.dto';
+import { ChannelMemberDto } from './dto/channel-member.dto';
+import { UpdateChannelPermissionsDto } from './dto/update-channel-permissions.dto';
+import { ChannelPolicy } from '../../policy/channel/channel.policy';
+import { ChannelPermissions } from '../../policy/permission.service';
+import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
+import { buildChannelSettings, ChannelRoleName } from '../../policy/channel/channel-permission.config';
+import { ChannelPermissionResolver } from '../../policy/channel/channel-permission.resolver';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class ChannelsService {
@@ -33,7 +40,9 @@ export class ChannelsService {
     @InjectRepository(WorkspaceRoleEntity)
     private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
     private readonly channelPolicy: ChannelPolicy,
-    private readonly permissionService: PermissionService
+    private readonly channelPermissionResolver: ChannelPermissionResolver,
+    private readonly notificationsService: NotificationsService,
+    private readonly chatService: ChatService
   ) {}
 
   async createChannel(
@@ -60,11 +69,12 @@ export class ChannelsService {
       name: dto.name ?? (dto.type === ChannelType.DM || dto.type === ChannelType.GROUP_DM ? null : dto.name),
       createdById: creatorMember.id,
       metadata: dto.metadata ?? {},
-      settings: dto.settings ?? {},
+      settings: buildChannelSettings(dto.settings),
       isDefault: dto.isDefault ?? false,
     });
 
     const savedChannel = await this.channelRepository.save(channel);
+    await this.initializeChannelRoles(savedChannel.id);
 
     // Add members depending on channel type
     if (dto.type === ChannelType.PUBLIC) {
@@ -83,6 +93,7 @@ export class ChannelsService {
       name: savedChannel.name,
       createdById: savedChannel.createdById,
       createdAt: savedChannel.createdAt,
+      settings: buildChannelSettings(savedChannel.settings),
       isDefault: savedChannel.isDefault,
     };
 
@@ -112,6 +123,209 @@ export class ChannelsService {
     );
 
     await this.channelMemberRepository.save(channelMembers);
+  }
+
+  async addMember(
+    workspaceId: string,
+    channelId: string,
+    actorUserId: string,
+    dto: AddChannelMemberDto
+  ): Promise<ResponseItem<{ message: string }>> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    const actorWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: actorUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['role', 'user'],
+    });
+    if (!actorWorkspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    const { actorChannelMember, actorPermissions } = await this.getActorChannelPermissionContext(
+      workspaceId,
+      channelId,
+      actorUserId
+    );
+    const canManage = this.channelPermissionResolver.can(actorPermissions, 'channel:invite_member', channel.settings);
+
+    if (!canManage) {
+      throw new ForbiddenException('You do not have permission to add members to this channel');
+    }
+
+    const targetWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: dto.userId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['user'],
+    });
+    if (!targetWorkspaceMember) {
+      throw new NotFoundException('Target user is not an active workspace member');
+    }
+
+    const existing = await this.channelMemberRepository.findOne({
+      where: { channelId, memberId: targetWorkspaceMember.id },
+    });
+    if (existing) {
+      throw new ForbiddenException('User is already a member of this channel');
+    }
+
+    await this.addSingleMemberToChannel(channelId, targetWorkspaceMember.id, dto.memberRole || 'member');
+
+    await this.notificationsService.publishEvent({
+      type: 'channel.member_added',
+      workspaceId,
+      actorUserId,
+      entityType: 'channel',
+      entityId: channel.id,
+      payload: {
+        recipientUserIds: [dto.userId],
+        actorName: actorWorkspaceMember.user?.name || 'Someone',
+        channelName: channel.name || 'channel',
+        channelId,
+        targetUrl: `/workspaces/${workspaceId}`,
+      },
+    });
+
+    const systemMessageSenderUserId = actorChannelMember ? actorUserId : dto.userId;
+    const targetDisplayName = targetWorkspaceMember.user?.name || targetWorkspaceMember.user?.email || 'a teammate';
+    const actorDisplayName = actorWorkspaceMember.user?.name || 'Someone';
+
+    await this.chatService.sendMessage(workspaceId, channelId, systemMessageSenderUserId, {
+      content: `${actorDisplayName} added ${targetDisplayName} to this channel.`,
+      messageType: 'system',
+    });
+
+    return new ResponseItem({ message: 'Member added to channel' }, 'Member added to channel successfully');
+  }
+
+  async kickMember(
+    workspaceId: string,
+    channelId: string,
+    actorUserId: string,
+    targetUserId: string
+  ): Promise<ResponseItem<{ message: string }>> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    const actorWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: actorUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['role', 'user'],
+    });
+    if (!actorWorkspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    if (actorUserId === targetUserId) {
+      throw new ForbiddenException('You cannot remove yourself with this endpoint');
+    }
+
+    const { actorPermissions } = await this.getActorChannelPermissionContext(workspaceId, channelId, actorUserId);
+    const canKick = this.channelPermissionResolver.can(actorPermissions, 'channel:kick_member', channel.settings);
+
+    if (!canKick) {
+      throw new ForbiddenException('You do not have permission to remove members from this channel');
+    }
+
+    const targetWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: targetUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['user'],
+    });
+    if (!targetWorkspaceMember) {
+      throw new NotFoundException('Target user is not an active workspace member');
+    }
+
+    const targetChannelMember = await this.channelMemberRepository.findOne({
+      where: { channelId, memberId: targetWorkspaceMember.id },
+    });
+    if (!targetChannelMember) {
+      throw new NotFoundException('Target user is not a member of this channel');
+    }
+
+    await this.channelMemberRepository.delete({ channelId, memberId: targetWorkspaceMember.id });
+
+    await this.notificationsService.publishEvent({
+      type: 'channel.member_removed',
+      workspaceId,
+      actorUserId,
+      entityType: 'channel',
+      entityId: channel.id,
+      payload: {
+        recipientUserIds: [targetUserId],
+        actorName: actorWorkspaceMember.user?.name || 'Someone',
+        channelName: channel.name || 'channel',
+        channelId,
+        targetUrl: `/workspaces/${workspaceId}`,
+      },
+    });
+
+    const targetDisplayName = targetWorkspaceMember.user?.name || targetWorkspaceMember.user?.email || 'a teammate';
+    const actorDisplayName = actorWorkspaceMember.user?.name || 'Someone';
+
+    await this.chatService.sendMessage(workspaceId, channelId, actorUserId, {
+      content: `${actorDisplayName} removed ${targetDisplayName} from this channel.`,
+      messageType: 'system',
+    });
+
+    return new ResponseItem({ message: 'Member removed from channel' }, 'Member removed from channel successfully');
+  }
+
+  async updateChannelPermissions(
+    workspaceId: string,
+    channelId: string,
+    actorUserId: string,
+    dto: UpdateChannelPermissionsDto
+  ): Promise<ResponseItem<ChannelDto>> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+    });
+
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    const { actorChannelMember, actorPermissions } = await this.getActorChannelPermissionContext(
+      workspaceId,
+      channelId,
+      actorUserId
+    );
+
+    if (!actorChannelMember) {
+      throw new ForbiddenException('You are not a member of this channel');
+    }
+
+    // channel:kick_member is a static capability that only the channel manager has.
+    const canManage = this.channelPermissionResolver.can(actorPermissions, 'channel:kick_member', channel.settings);
+
+    if (!canManage) {
+      throw new ForbiddenException('You do not have permission to update channel permissions');
+    }
+
+    const normalizedSettings = buildChannelSettings(channel.settings);
+    const currentPermissions = normalizedSettings.permissions;
+
+    const updatedPermissions = {
+      ...currentPermissions,
+      ...(dto.invitePolicy ? { invitePolicy: dto.invitePolicy } : {}),
+      ...(dto.postPolicy ? { postPolicy: dto.postPolicy } : {}),
+      ...(dto.pinMessagePolicy ? { pinMessagePolicy: dto.pinMessagePolicy } : {}),
+      ...(dto.threadPolicy ? { threadPolicy: dto.threadPolicy } : {}),
+    };
+
+    channel.settings = {
+      ...(channel.settings || {}),
+      permissions: updatedPermissions,
+    };
+
+    await this.channelRepository.save(channel);
+
+    return this.getChannelById(workspaceId, channelId, actorUserId);
   }
 
   private async addAllActiveMembersToChannel(
@@ -192,7 +406,7 @@ export class ChannelsService {
       createdById: channel.createdById,
       createdAt: channel.createdAt,
       metadata: channel.metadata || {},
-      settings: channel.settings || {},
+      settings: buildChannelSettings(channel.settings),
       isDefault: channel.isDefault,
     }));
 
@@ -224,22 +438,71 @@ export class ChannelsService {
       relations: ['channel'],
     });
 
-    const channels = channelMembers
-      .map((cm) => cm.channel)
-      .filter((channel) => channel !== null && channel.workspaceId === workspaceId);
+    const channelDtos: ChannelDto[] = [];
+    for (const channelMember of channelMembers) {
+      const channel = channelMember.channel;
+      if (!channel || channel.workspaceId !== workspaceId) {
+        continue;
+      }
 
-    // Map to DTOs with basic info only (user's channels)
-    const channelDtos: ChannelDto[] = channels.map((channel) => ({
-      id: channel.id,
-      workspaceId: channel.workspaceId,
-      type: channel.type as ChannelType,
-      name: channel.name,
-      createdById: channel.createdById,
-      createdAt: channel.createdAt,
-      isDefault: channel.isDefault,
-    }));
+      const normalizedPermissions = await this.getChannelPermissions(
+        channel.id,
+        channelMember.memberRole as ChannelRoleName
+      );
+      const capabilityMap = this.channelPermissionResolver.buildCapabilityMap(normalizedPermissions, channel.settings);
+
+      channelDtos.push({
+        id: channel.id,
+        workspaceId: channel.workspaceId,
+        type: channel.type as ChannelType,
+        name: channel.name,
+        createdById: channel.createdById,
+        createdAt: channel.createdAt,
+        isDefault: channel.isDefault,
+        permissions: capabilityMap,
+      });
+    }
 
     return new ResponseItem<ChannelDto[]>(channelDtos, 'User channels fetched successfully');
+  }
+
+  async getChannelMembers(
+    workspaceId: string,
+    channelId: string,
+    userId: string
+  ): Promise<ResponseItem<ChannelMemberDto[]>> {
+    const channel = await this.channelRepository.findOne({
+      where: { id: channelId, workspaceId },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel does not exist');
+    }
+
+    const { actorChannelMember } = await this.getActorChannelPermissionContext(workspaceId, channelId, userId);
+    if (!actorChannelMember) {
+      throw new ForbiddenException('You are not a member of this channel');
+    }
+
+    const channelMembers = await this.channelMemberRepository.find({
+      where: { channelId },
+      relations: ['member', 'member.user'],
+      order: { joinedAt: 'ASC' },
+    });
+
+    const memberDtos: ChannelMemberDto[] = channelMembers
+      .filter((member) => member.member?.user)
+      .map((member) => ({
+        channelId: member.channelId,
+        userId: member.member.userId,
+        workspaceMemberId: member.memberId,
+        name: member.member.user.name,
+        email: member.member.user.email,
+        avatar: member.member.user.avatar || undefined,
+        memberRole: member.memberRole as 'manager' | 'member',
+        joinedAt: member.joinedAt,
+      }));
+
+    return new ResponseItem<ChannelMemberDto[]>(memberDtos, 'Channel members fetched successfully');
   }
 
   async getChannelById(workspaceId: string, channelId: string, userId: string): Promise<ResponseItem<ChannelDto>> {
@@ -278,22 +541,11 @@ export class ChannelsService {
     if (!channelMember) {
       throw new ForbiddenException('You are not a member of this channel');
     }
-
     // Get channel role permissions based on memberRole
-    const channelRole = await this.channelRoleRepository.findOne({
-      where: {
-        channelId: channel.id,
-        name: channelMember.memberRole as 'manager' | 'member',
-      },
-    });
-
-    let normalizedPermissions: ChannelPermissions | null = null;
-    if (channelRole?.permissions) {
-      if (channelRole.permissions.actions && typeof channelRole.permissions.actions === 'object') {
-        normalizedPermissions = channelRole.permissions as ChannelPermissions;
-      }
-    }
-
+    const normalizedPermissions = await this.getChannelPermissions(
+      channel.id,
+      channelMember.memberRole as ChannelRoleName
+    );
     // Map channel data based on permissions
     const dto = this.channelPolicy.map(channel, normalizedPermissions);
 
@@ -306,6 +558,12 @@ export class ChannelsService {
 
   async initializeChannelRoles(channelId: string): Promise<void> {
     for (const roleData of DEFAULT_CHANNEL_ROLES) {
+      const existingRole = await this.channelRoleRepository.findOne({
+        where: { channelId, name: roleData.name },
+      });
+      if (existingRole) {
+        continue;
+      }
       const role = this.channelRoleRepository.create({
         channelId,
         name: roleData.name,
@@ -313,5 +571,63 @@ export class ChannelsService {
       });
       await this.channelRoleRepository.save(role);
     }
+  }
+
+  private async getChannelPermissions(
+    channelId: string,
+    roleName: ChannelRoleName | null | undefined
+  ): Promise<ChannelPermissions | null> {
+    if (!roleName) {
+      return null;
+    }
+    const channelRole = await this.channelRoleRepository.findOne({
+      where: {
+        channelId,
+        name: roleName,
+      },
+    });
+
+    if (!channelRole?.permissions?.actions || typeof channelRole.permissions.actions !== 'object') {
+      return null;
+    }
+
+    return channelRole.permissions as ChannelPermissions;
+  }
+
+  private async getActorChannelPermissionContext(
+    workspaceId: string,
+    channelId: string,
+    actorUserId: string
+  ): Promise<{
+    actorWorkspaceMember: WorkspaceMemberEntity;
+    actorChannelMember: ChannelMemberEntity | null;
+    actorPermissions: ChannelPermissions | null;
+  }> {
+    const actorWorkspaceMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: actorUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      relations: ['role', 'user'],
+    });
+    if (!actorWorkspaceMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    const actorChannelMember = await this.channelMemberRepository.findOne({
+      where: { channelId, memberId: actorWorkspaceMember.id },
+    });
+    const isWorkspacePrivileged =
+      actorWorkspaceMember.role?.name === WorkspaceRoleNameEnum.OWNER ||
+      actorWorkspaceMember.role?.name === WorkspaceRoleNameEnum.ADMIN;
+    const effectiveRoleName = actorChannelMember?.memberRole
+      ? (actorChannelMember.memberRole as ChannelRoleName)
+      : isWorkspacePrivileged
+        ? 'manager'
+        : null;
+    const actorPermissions = await this.getChannelPermissions(channelId, effectiveRoleName);
+
+    return {
+      actorWorkspaceMember,
+      actorChannelMember,
+      actorPermissions,
+    };
   }
 }

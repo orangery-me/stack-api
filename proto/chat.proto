@@ -25,8 +25,9 @@ message SendMessageResponse {
   string sender_email = 4;
   string sender_avatar = 5;
   string content = 6;
-  string created_at = 7;
-  string channel_id = 8;
+  string message_type = 7;
+  string created_at = 8;
+  string channel_id = 9;
 }
 
 message GetMessagesRequest {
@@ -47,6 +48,7 @@ message MessageItem {
   string sender_email = 4;
   string sender_avatar = 5;
   string content = 6;
-  string created_at = 7;
-  string channel_id = 8;
+  string message_type = 7;
+  string created_at = 8;
+  string channel_id = 9;
 }

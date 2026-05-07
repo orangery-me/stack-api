@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ChannelSettingsShape } from '../../../policy/channel/channel-permission.config';
 
 export enum ChannelType {
   PUBLIC = 'public',
@@ -25,7 +26,7 @@ export class CreateChannelDto {
 
   @ApiProperty({ required: false, type: 'object' })
   @IsOptional()
-  settings?: Record<string, any>;
+  settings?: ChannelSettingsShape;
 
   @ApiProperty({
     required: false,

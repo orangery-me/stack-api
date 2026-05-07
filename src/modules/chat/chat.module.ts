@@ -5,12 +5,14 @@ import { ChatClientModule } from '../chat-client/chat-client.module';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { UsersModule } from '@UsersModule/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ChannelEntity, ChannelMemberEntity, WorkspaceMemberEntity, UserEntity]),
     ChatClientModule,
     UsersModule,
+    NotificationsModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

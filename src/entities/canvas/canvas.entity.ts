@@ -5,15 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  OneToOne,
-  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { WorkspaceEntity } from '../workspace/workspace.entity';
 import { WorkspaceMemberEntity } from '../workspace/workspace-member.entity';
-import { ChannelEntity } from '../channel/channel.entity';
-import { CanvasContentEntity } from './canvas-content.entity';
-import { CanvasVersionEntity } from './canvas-version.entity';
 
 @Entity('canvases')
 export class CanvasEntity {
@@ -27,13 +22,6 @@ export class CanvasEntity {
   @JoinColumn({ name: 'workspaceId' })
   workspace: WorkspaceEntity;
 
-  @Column({ type: 'uuid' })
-  channelId: string;
-
-  @ManyToOne(() => ChannelEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'channelId' })
-  channel: ChannelEntity;
-
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
@@ -42,6 +30,13 @@ export class CanvasEntity {
 
   @Column({ type: 'varchar', length: 32, default: 'active' })
   status: string; // active | archived | deleted (soft)
+
+  @Column({ type: 'uuid' })
+  ownerId: string;
+
+  @ManyToOne(() => WorkspaceMemberEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'ownerId' })
+  owner: WorkspaceMemberEntity;
 
   @Column({ type: 'uuid' })
   createdById: string;
@@ -57,6 +52,13 @@ export class CanvasEntity {
   @JoinColumn({ name: 'updatedById' })
   updatedBy?: WorkspaceMemberEntity | null;
 
+  @Column({
+    type: 'varchar',
+    length: 32,
+    default: 'private',
+  })
+  visibility: string; // private | shared | public-workspace
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -68,11 +70,4 @@ export class CanvasEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   lastAutoSaveAt?: Date | null;
-
-  @OneToOne(() => CanvasContentEntity, (content) => content.canvas)
-  content: CanvasContentEntity;
-
-  @OneToMany(() => CanvasVersionEntity, (version) => version.canvas)
-  versions: CanvasVersionEntity[];
 }
-

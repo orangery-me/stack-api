@@ -8,6 +8,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { UsersService } from '@UsersModule/users.service';
 import { ProfileDto } from '@UsersModule/dto/profile.dto';
 import { ResponseItem } from '@app/common/dtos/response-item.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface SendMessageResult {
   id: string;
@@ -16,6 +17,7 @@ export interface SendMessageResult {
   senderEmail: string;
   senderAvatar: string | null;
   content: string;
+  messageType: string;
   createdAt: string;
   channelId: string;
 }
@@ -38,7 +40,8 @@ export class ChatService {
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     private readonly chatClientService: ChatClientService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   /**
@@ -109,6 +112,25 @@ export class ChatService {
       messageType: dto.messageType || 'text',
     });
 
+    const isSystemMessage = (dto.messageType || 'text') === 'system';
+    const recipientUserIds = await this.resolveRecipientUserIds(channelId, userId);
+    if (!isSystemMessage && recipientUserIds.length > 0) {
+      await this.notificationsService.publishEvent({
+        type: 'conversation.reply',
+        workspaceId,
+        actorUserId: userId,
+        entityType: 'channel_message',
+        entityId: result.id,
+        payload: {
+          recipientUserIds,
+          actorName: user.name,
+          preview: dto.content?.slice(0, 180) || 'New message',
+          channelId,
+          targetUrl: `/workspaces/${workspaceId}`,
+        },
+      });
+    }
+
     return {
       id: result.id,
       senderId: result.senderId,
@@ -116,6 +138,7 @@ export class ChatService {
       senderEmail: result.senderEmail,
       senderAvatar: result.senderAvatar || null,
       content: result.content,
+      messageType: result.messageType || dto.messageType || 'text',
       createdAt: result.createdAt,
       channelId: result.channelId,
     };
@@ -155,6 +178,7 @@ export class ChatService {
           senderName: profile.name,
           senderEmail: profile.email,
           senderAvatar: profile.avatar || null,
+          messageType: message.messageType || 'text',
         });
       }
     }
@@ -164,5 +188,18 @@ export class ChatService {
       hasMore: result.hasMore,
       page,
     };
+  }
+
+  private async resolveRecipientUserIds(channelId: string, actorUserId: string): Promise<string[]> {
+    const channelMembers = await this.channelMemberRepository.find({
+      where: { channelId },
+      relations: ['member'],
+    });
+
+    const recipientUserIds = channelMembers
+      .map((channelMember) => channelMember.member?.userId)
+      .filter((userId) => Boolean(userId) && userId !== actorUserId);
+
+    return Array.from(new Set(recipientUserIds));
   }
 }

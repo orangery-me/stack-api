@@ -1,5 +1,5 @@
 import { WorkspaceRoleNameEnum } from '@Constant/enums';
-import type { WorkspacePermissions } from './permission.service';
+import type { WorkspacePermissions } from '../permission.service';
 
 export interface WorkspaceRoleConfig {
   name: WorkspaceRoleNameEnum;

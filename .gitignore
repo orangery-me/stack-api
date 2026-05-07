@@ -37,4 +37,4 @@ lerna-debug.log*
 
 /.env
 /.env.production
-PLAN.md
+.cursor/

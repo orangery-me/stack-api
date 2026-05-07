@@ -1,14 +1,26 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class CanvasOwnerDto {
+  @ApiProperty({ description: 'Workspace member ID của owner', example: '123e4567-e89b-12d3-a456-426614174000' })
+  id: string;
+
+  @ApiProperty({ description: 'Tên hiển thị của owner', example: 'John Doe' })
+  name: string;
+
+  @ApiPropertyOptional({
+    description: 'URL avatar của owner',
+    nullable: true,
+    example: 'https://example.com/avatar.jpg',
+  })
+  avatar?: string | null;
+}
+
 export class CanvasDto {
   @ApiProperty()
   id: string;
 
   @ApiProperty()
   workspaceId: string;
-
-  @ApiProperty()
-  channelId: string;
 
   @ApiProperty()
   title: string;
@@ -34,6 +46,21 @@ export class CanvasDto {
   @ApiProperty()
   updatedAt: Date;
 
+  @ApiProperty()
+  ownerId: string;
+
+  @ApiPropertyOptional({
+    description: 'Thông tin owner của canvas (dùng để hiển thị ở FE)',
+    type: CanvasOwnerDto,
+  })
+  owner?: CanvasOwnerDto;
+
+  @ApiProperty({
+    description: 'Chế độ hiển thị của canvas',
+    example: 'private',
+  })
+  visibility: string;
+
   @ApiPropertyOptional({
     description: 'Version đã được publish gần nhất',
   })
@@ -45,9 +72,12 @@ export class CanvasDto {
   lastAutoSaveAt?: Date | null;
 
   @ApiPropertyOptional({
-    description: 'Nội dung hiện tại của canvas (optional)',
-    type: 'object',
+    description: 'User hiện tại có quyền edit không',
   })
-  content?: any;
-}
+  canEdit?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Canvas có đang được share hay không',
+  })
+  isShared?: boolean;
+}

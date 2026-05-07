@@ -19,21 +19,8 @@ export class CreateCanvasDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'Nội dung khởi tạo (block-based JSON)',
-    type: 'object',
-    example: {
-      version: 1,
-      blocks: [
-        {
-          id: 'b1',
-          type: 'heading',
-          props: { level: 2, text: 'Sprint goals' },
-          children: [],
-        },
-      ],
-    },
+    description: 'Nội dung khởi tạo (đã chuyển sang collab server, không còn dùng ở REST)',
   })
   @IsOptional()
   initialContent?: any;
 }
-
