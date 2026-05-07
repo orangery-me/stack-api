@@ -22,7 +22,9 @@ export class McpService {
     return server;
   }
 
-  private registerTools(server: McpServer) {
+  private registerTools(serverInstance: McpServer) {
+    const server = serverInstance as any;
+
     server.tool(
       'get_canvas_blocks',
       'Read all top-level blocks from a canvas. Returns an array of blocks with index, type, and text.',
