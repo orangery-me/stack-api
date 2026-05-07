@@ -264,6 +264,97 @@ export class TasksService {
     return new ResponseItem(lists, 'Task lists fetched successfully');
   }
 
+  async listTaskListsForMcp(
+    workspaceId: string,
+    userId: string,
+    channelId?: string,
+  ): Promise<Array<{ id: string; name: string; channelId: string; position: number }>> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+
+    if (channelId) {
+      await this.verifyChannelMembership(channelId, workspaceMember.id);
+      const lists = await this.taskListRepository.find({
+        where: { workspaceId, channelId },
+        order: { position: 'ASC', createdAt: 'ASC' },
+      });
+      return lists.map((list) => ({
+        id: list.id,
+        name: list.name,
+        channelId: list.channelId,
+        position: list.position,
+      }));
+    }
+
+    const joinedChannels = await this.channelMemberRepository.find({
+      where: { memberId: workspaceMember.id },
+    });
+    const channelIds = joinedChannels.map((item) => item.channelId);
+    if (!channelIds.length) return [];
+
+    const lists = await this.taskListRepository
+      .createQueryBuilder('taskList')
+      .where('taskList.workspaceId = :workspaceId', { workspaceId })
+      .andWhere('taskList.channelId IN (:...channelIds)', { channelIds })
+      .orderBy('taskList.position', 'ASC')
+      .addOrderBy('taskList.createdAt', 'ASC')
+      .getMany();
+
+    return lists.map((list) => ({
+      id: list.id,
+      name: list.name,
+      channelId: list.channelId,
+      position: list.position,
+    }));
+  }
+
+  async searchWorkspaceMembersForMcp(
+    workspaceId: string,
+    userId: string,
+    query: string,
+    channelId?: string,
+    limit = 10,
+  ): Promise<Array<{ workspaceMemberId: string; userId: string; name: string; email: string }>> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+    const normalizedLimit = Math.min(Math.max(limit, 1), 50);
+
+    let allowedMemberIds: string[] | null = null;
+    if (channelId) {
+      await this.verifyChannelMembership(channelId, workspaceMember.id);
+      const channelMembers = await this.channelMemberRepository.find({
+        where: { channelId },
+      });
+      allowedMemberIds = channelMembers.map((member) => member.memberId);
+      if (!allowedMemberIds.length) return [];
+    }
+
+    const qb = this.workspaceMemberRepository
+      .createQueryBuilder('member')
+      .leftJoinAndSelect('member.user', 'user')
+      .where('member.workspaceId = :workspaceId', { workspaceId })
+      .andWhere('member.status = :status', { status: WorkspaceMemberStatusEnum.ACTIVE });
+
+    if (allowedMemberIds) {
+      qb.andWhere('member.id IN (:...allowedMemberIds)', { allowedMemberIds });
+    }
+
+    const normalizedQuery = query.trim();
+    if (normalizedQuery) {
+      qb.andWhere('(LOWER(user.name) LIKE :q OR LOWER(user.email) LIKE :q)', {
+        q: `%${normalizedQuery.toLowerCase()}%`,
+      });
+    }
+
+    const members = await qb.orderBy('user.name', 'ASC').limit(normalizedLimit).getMany();
+    return members
+      .filter((member) => Boolean(member.user?.id))
+      .map((member) => ({
+        workspaceMemberId: member.id,
+        userId: member.user.id,
+        name: member.user.name || '',
+        email: member.user.email || '',
+      }));
+  }
+
   async updateTaskList(
     workspaceId: string,
     taskListId: string,

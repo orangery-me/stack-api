@@ -274,6 +274,83 @@ export class AgentController {
     return new ResponseItem(result, result.ok ? 'Action applied' : 'Action failed');
   }
 
+  @Post('sessions/:sessionId/tasks/messages/stream')
+  @ApiOperation({ summary: 'Task chat stream with session history + pending task actions (Accept/Reject)' })
+  async taskSessionMessageStream(
+    @Req() req: Request,
+    @Param('sessionId') sessionId: string,
+    @Body()
+    body: {
+      workspaceId: string;
+      channelId?: string;
+      taskListId?: string;
+      canvasId?: string;
+      canvasContent?: string;
+      message: string;
+      provider?: string;
+      model?: string;
+    },
+    @Res() res: Response,
+  ): Promise<void> {
+    const userId = String((req.user as any).userId);
+    this.setSSEHeaders(res);
+
+    const stream$ = this.agentService.taskSessionMessageStream({
+      userId,
+      sessionId,
+      workspaceId: body.workspaceId,
+      channelId: body.channelId,
+      taskListId: body.taskListId,
+      canvasId: body.canvasId,
+      canvasContent: body.canvasContent ?? '',
+      message: body.message,
+      provider: body.provider,
+      model: body.model,
+    });
+
+    const subscription = stream$.subscribe({
+      next: (item) => {
+        if (item.done) {
+          res.write(`data: [DONE]\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ chunk: item.chunk })}\n\n`);
+        }
+      },
+      error: (err: any) => {
+        res.write(`data: ${JSON.stringify({ error: err?.message ?? 'Stream error' })}\n\n`);
+        res.end();
+      },
+      complete: () => res.end(),
+    });
+
+    res.on('close', () => subscription.unsubscribe());
+  }
+
+  @Post('tasks/actions/apply')
+  @ApiOperation({ summary: 'Apply one approved task action from pending preview list' })
+  async applyTaskAction(
+    @Req() req: Request,
+    @Body()
+    body: {
+      workspaceId: string;
+      channelId?: string;
+      taskListId?: string;
+      actionName: string;
+      actionArgsJson: string;
+    },
+  ): Promise<ResponseItem<{ ok: boolean; resultJson?: string; error?: string }>> {
+    const userId = String((req.user as any).userId);
+    const result = await this.agentService.taskApplyAction({
+      userId,
+      workspaceId: body.workspaceId,
+      channelId: body.channelId,
+      taskListId: body.taskListId,
+      actionName: body.actionName,
+      actionArgsJson: body.actionArgsJson,
+    });
+    return new ResponseItem(result, result.ok ? 'Action applied' : 'Action failed');
+  }
+
   // ---- Helpers ----
 
   private setSSEHeaders(res: Response) {

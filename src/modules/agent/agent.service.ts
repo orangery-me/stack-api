@@ -9,6 +9,9 @@ import {
   CanvasSessionMessageRequest,
   CanvasApplyActionRequest,
   CanvasApplyActionResponse,
+  TaskSessionMessageRequest,
+  TaskApplyActionRequest,
+  TaskApplyActionResponse,
   SendMessageRequest,
   SendMessageResponse,
   SessionDto,
@@ -69,5 +72,13 @@ export class AgentService {
 
   async canvasApplyAction(data: CanvasApplyActionRequest): Promise<CanvasApplyActionResponse> {
     return this.agentClientService.canvasApplyAction(data);
+  }
+
+  taskSessionMessageStream(data: TaskSessionMessageRequest): Observable<AskAgentStreamChunk> {
+    return this.agentClientService.taskSessionMessageStream(data);
+  }
+
+  async taskApplyAction(data: TaskApplyActionRequest): Promise<TaskApplyActionResponse> {
+    return this.agentClientService.taskApplyAction(data);
   }
 }

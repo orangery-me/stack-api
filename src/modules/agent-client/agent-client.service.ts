@@ -87,6 +87,34 @@ export interface CanvasApplyActionResponse {
   error?: string;
 }
 
+export interface TaskSessionMessageRequest {
+  userId: string;
+  sessionId: string;
+  workspaceId: string;
+  channelId?: string;
+  taskListId?: string;
+  canvasId?: string;
+  canvasContent?: string;
+  message: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface TaskApplyActionRequest {
+  userId: string;
+  workspaceId: string;
+  channelId?: string;
+  taskListId?: string;
+  actionName: string;
+  actionArgsJson: string;
+}
+
+export interface TaskApplyActionResponse {
+  ok: boolean;
+  resultJson?: string;
+  error?: string;
+}
+
 // ---- gRPC service interface ----
 
 interface AgentServiceClient {
@@ -134,6 +162,26 @@ interface AgentServiceClient {
     actionName: string;
     actionArgsJson: string;
   }): Observable<CanvasApplyActionResponse>;
+  taskSessionMessageStream(data: {
+    userId: string;
+    sessionId: string;
+    workspaceId: string;
+    channelId?: string;
+    taskListId?: string;
+    canvasId?: string;
+    canvasContent?: string;
+    message: string;
+    provider?: string;
+    model?: string;
+  }): Observable<AskAgentStreamChunk>;
+  taskApplyAction(data: {
+    userId: string;
+    workspaceId: string;
+    channelId?: string;
+    taskListId?: string;
+    actionName: string;
+    actionArgsJson: string;
+  }): Observable<TaskApplyActionResponse>;
 }
 
 @Injectable()
@@ -218,5 +266,24 @@ export class AgentClientService implements OnModuleInit {
 
   async canvasApplyAction(data: CanvasApplyActionRequest): Promise<CanvasApplyActionResponse> {
     return lastValueFrom(this.agentService.canvasApplyAction(data));
+  }
+
+  taskSessionMessageStream(data: TaskSessionMessageRequest): Observable<AskAgentStreamChunk> {
+    return this.agentService.taskSessionMessageStream({
+      userId: data.userId,
+      sessionId: data.sessionId,
+      workspaceId: data.workspaceId,
+      channelId: data.channelId,
+      taskListId: data.taskListId,
+      canvasId: data.canvasId,
+      canvasContent: data.canvasContent,
+      message: data.message,
+      provider: data.provider,
+      model: data.model,
+    });
+  }
+
+  async taskApplyAction(data: TaskApplyActionRequest): Promise<TaskApplyActionResponse> {
+    return lastValueFrom(this.agentService.taskApplyAction(data));
   }
 }
