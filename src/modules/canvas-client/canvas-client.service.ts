@@ -18,8 +18,8 @@ export class CanvasClientService {
   private readonly http: AxiosInstance;
 
   constructor(private readonly config: ConfigService) {
-    const baseURL = this.config.get<string>('CANVAS_COLLAB_URL', 'http://localhost:1235');
-    const secret = this.config.get<string>('CANVAS_COLLAB_SECRET', '');
+    const baseURL = this.config.get<string>('CANVAS_COLLAB_URL');
+    const secret = this.config.get<string>('CANVAS_COLLAB_SECRET');
 
     this.http = axios.create({
       baseURL,
@@ -37,43 +37,31 @@ export class CanvasClientService {
     canvasId: string,
     content: string,
     type = 'paragraph',
-    afterIndex?: number,
+    afterIndex?: number
   ): Promise<BlockMutationResult> {
-    const { data } = await this.http.post<BlockMutationResult>(
-      `/canvas/${canvasId}/blocks`,
-      { content, type, afterIndex },
-    );
+    const { data } = await this.http.post<BlockMutationResult>(`/canvas/${canvasId}/blocks`, {
+      content,
+      type,
+      afterIndex,
+    });
     return data;
   }
 
-  async updateBlock(
-    canvasId: string,
-    index: number,
-    content: string,
-  ): Promise<BlockMutationResult> {
-    const { data } = await this.http.patch<BlockMutationResult>(
-      `/canvas/${canvasId}/blocks/${index}`,
-      { content },
-    );
+  async updateBlock(canvasId: string, index: number, content: string): Promise<BlockMutationResult> {
+    const { data } = await this.http.patch<BlockMutationResult>(`/canvas/${canvasId}/blocks/${index}`, { content });
     return data;
   }
 
   async deleteBlock(canvasId: string, index: number): Promise<BlockMutationResult> {
-    const { data } = await this.http.delete<BlockMutationResult>(
-      `/canvas/${canvasId}/blocks/${index}`,
-    );
+    const { data } = await this.http.delete<BlockMutationResult>(`/canvas/${canvasId}/blocks/${index}`);
     return data;
   }
 
-  async reorderBlocks(
-    canvasId: string,
-    fromIndex: number,
-    toIndex: number,
-  ): Promise<BlockMutationResult> {
-    const { data } = await this.http.post<BlockMutationResult>(
-      `/canvas/${canvasId}/blocks/reorder`,
-      { fromIndex, toIndex },
-    );
+  async reorderBlocks(canvasId: string, fromIndex: number, toIndex: number): Promise<BlockMutationResult> {
+    const { data } = await this.http.post<BlockMutationResult>(`/canvas/${canvasId}/blocks/reorder`, {
+      fromIndex,
+      toIndex,
+    });
     return data;
   }
 }

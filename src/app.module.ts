@@ -91,7 +91,7 @@ import * as Joi from 'joi';
         APP_URL: Joi.string().optional().default('http://localhost:8105'),
         CLIENT_URL: Joi.string().optional().default('http://localhost:5173'),
 
-        // Canvas Collab Server (for MCP tools)
+        // Canvas Collab Server
         CANVAS_COLLAB_URL: Joi.string().default('http://localhost:1235'),
         CANVAS_COLLAB_SECRET: Joi.string().optional().default(''),
 
