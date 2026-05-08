@@ -15,13 +15,6 @@ services:
       - /home/ubuntu/api/logs:/app/logs
     networks:
       - stack-network
-  #   depends_on:
-  #     - chat
-  # chat:
-  #   image: orangery/stack-chat-api:latest
-  #   container_name: stack-chat-api
-  #   networks:
-  #     - stack-network
-
 networks:
   stack-network:
+    external: true
