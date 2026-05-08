@@ -18,4 +18,3 @@ services:
 networks:
   stack-network:
     external: true
-    name: stack-network
