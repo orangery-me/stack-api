@@ -1,5 +1,14 @@
-import { Injectable, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
+import * as path from 'path';
 import { IsNull, Repository } from 'typeorm';
 import { ResponseItem } from '@app/common/dtos';
 import {
@@ -21,11 +30,19 @@ import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskListDto } from './dto/create-task-list.dto';
 import { UpdateTaskListDto } from './dto/update-task-list.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { StorageService } from '../storage/storage.service';
+import { isAllowedUploadFileType, resolveMaxUploadMb } from '../storage/file-upload.options';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
-import { canPerformTaskAction, TaskPermissionAction, TaskPermissionContext } from '../../policy/task/task-permission.config';
+import {
+  canPerformTaskAction,
+  TaskPermissionAction,
+  TaskPermissionContext,
+} from '../../policy/task/task-permission.config';
 
 @Injectable()
 export class TasksService {
+  private static readonly MAX_ATTACHMENTS = 50;
+
   constructor(
     @InjectRepository(TaskEntity)
     private readonly taskRepository: Repository<TaskEntity>,
@@ -40,6 +57,8 @@ export class TasksService {
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
     private readonly notificationsService: NotificationsService,
+    private readonly storageService: StorageService,
+    private readonly configService: ConfigService
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -47,13 +66,13 @@ export class TasksService {
   private enforceTaskAction(
     channelMember: ChannelMemberEntity,
     action: TaskPermissionAction,
-    context?: TaskPermissionContext,
+    context?: TaskPermissionContext
   ) {
-    const roleConfig = DEFAULT_CHANNEL_ROLES.find(r => r.name === channelMember.memberRole);
+    const roleConfig = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole);
     if (!roleConfig) {
       throw new ForbiddenException('Invalid channel role');
     }
-    
+
     const hasPermission = canPerformTaskAction(roleConfig.permissions, action, context);
     if (!hasPermission) {
       throw new ForbiddenException(`You don't have permission to perform '${action}' on this task`);
@@ -71,10 +90,7 @@ export class TasksService {
     return member;
   }
 
-  private async verifyChannelMembership(
-    channelId: string,
-    workspaceMemberId: string,
-  ): Promise<ChannelMemberEntity> {
+  private async verifyChannelMembership(channelId: string, workspaceMemberId: string): Promise<ChannelMemberEntity> {
     const channelMember = await this.channelMemberRepository.findOne({
       where: { channelId, memberId: workspaceMemberId },
     });
@@ -123,13 +139,7 @@ export class TasksService {
       where: { id: taskId, workspaceId, deletedAt: IsNull() },
       relations: withChildren
         ? [...this.taskDetailRelations]
-        : [
-            'assignees',
-            'assignees.workspaceMember',
-            'assignees.workspaceMember.user',
-            'createdBy',
-            'createdBy.user',
-          ],
+        : ['assignees', 'assignees.workspaceMember', 'assignees.workspaceMember.user', 'createdBy', 'createdBy.user'],
     });
     if (!task) {
       throw new NotFoundException('Task not found');
@@ -147,14 +157,21 @@ export class TasksService {
       if (type !== 'canvas' && type !== 'file') continue;
       const name = String(r.name ?? '').slice(0, 500);
       if (!name) continue;
-      out.push({
+      const dto: TaskAttachmentDto = {
         id: typeof r.id === 'string' ? r.id : undefined,
         type,
         name,
         url: typeof r.url === 'string' ? r.url : undefined,
         canvasId: typeof r.canvasId === 'string' ? r.canvasId : undefined,
-        fileId: typeof r.fileId === 'string' ? r.fileId : undefined,
-      });
+        fileId: typeof r.fileId === 'string' ? r.fileId.slice(0, 2048) : undefined,
+      };
+      if (typeof r.size === 'number' && Number.isFinite(r.size) && r.size >= 0) {
+        dto.size = Math.min(r.size, Number.MAX_SAFE_INTEGER);
+      }
+      if (typeof r.mimeType === 'string' && r.mimeType.trim()) {
+        dto.mimeType = r.mimeType.trim().slice(0, 255);
+      }
+      out.push(dto);
       if (out.length >= 50) break;
     }
     return out;
@@ -172,7 +189,11 @@ export class TasksService {
       if (a.id) row.id = a.id;
       if (a.url) row.url = a.url.slice(0, 2000);
       if (a.canvasId) row.canvasId = a.canvasId;
-      if (a.fileId) row.fileId = a.fileId.slice(0, 255);
+      if (a.fileId) row.fileId = String(a.fileId).slice(0, 2048);
+      if (a.size !== undefined && a.size !== null && Number.isFinite(Number(a.size))) {
+        row.size = Math.floor(Number(a.size));
+      }
+      if (a.mimeType) row.mimeType = String(a.mimeType).slice(0, 255);
       out.push(row);
       if (out.length >= 50) break;
     }
@@ -233,7 +254,7 @@ export class TasksService {
   private async maybeRollupParentDone(
     workspaceId: string,
     parentId: string | null | undefined,
-    actorUserId: string,
+    actorUserId: string
   ): Promise<void> {
     if (!parentId) return;
     const siblings = await this.taskRepository.find({
@@ -242,7 +263,7 @@ export class TasksService {
     if (!siblings.length) return;
     if (!siblings.every((t) => t.status === TaskStatus.DONE)) return;
 
-    let parent = await this.getTaskOrFail(parentId, workspaceId);
+    const parent = await this.getTaskOrFail(parentId, workspaceId);
     if (parent.status === TaskStatus.DONE) return;
 
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, actorUserId);
@@ -276,12 +297,7 @@ export class TasksService {
 
   // ─── TaskList CRUD ────────────────────────────────────────
 
-  async createTaskList(
-    workspaceId: string,
-    channelId: string,
-    userId: string,
-    dto: CreateTaskListDto,
-  ) {
+  async createTaskList(workspaceId: string, channelId: string, userId: string, dto: CreateTaskListDto) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     await this.getChannelOrFail(channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(channelId, workspaceMember.id);
@@ -306,11 +322,7 @@ export class TasksService {
     return new ResponseItem(saved, 'Task list created successfully');
   }
 
-  async getTaskListsByChannel(
-    workspaceId: string,
-    channelId: string,
-    userId: string,
-  ) {
+  async getTaskListsByChannel(workspaceId: string, channelId: string, userId: string) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     await this.getChannelOrFail(channelId, workspaceId);
     await this.verifyChannelMembership(channelId, workspaceMember.id);
@@ -326,7 +338,7 @@ export class TasksService {
   async listTaskListsForMcp(
     workspaceId: string,
     userId: string,
-    channelId?: string,
+    channelId?: string
   ): Promise<Array<{ id: string; name: string; channelId: string; position: number }>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
 
@@ -371,7 +383,7 @@ export class TasksService {
     userId: string,
     query: string,
     channelId?: string,
-    limit = 10,
+    limit = 10
   ): Promise<Array<{ workspaceMemberId: string; userId: string; name: string; email: string }>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const normalizedLimit = Math.min(Math.max(limit, 1), 50);
@@ -414,12 +426,7 @@ export class TasksService {
       }));
   }
 
-  async updateTaskList(
-    workspaceId: string,
-    taskListId: string,
-    userId: string,
-    dto: UpdateTaskListDto,
-  ) {
+  async updateTaskList(workspaceId: string, taskListId: string, userId: string, dto: UpdateTaskListDto) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
     const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
@@ -432,11 +439,7 @@ export class TasksService {
     return new ResponseItem(updated, 'Task list updated successfully');
   }
 
-  async deleteTaskList(
-    workspaceId: string,
-    taskListId: string,
-    userId: string,
-  ) {
+  async deleteTaskList(workspaceId: string, taskListId: string, userId: string) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
     const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
@@ -453,7 +456,7 @@ export class TasksService {
     workspaceId: string,
     taskListId: string,
     userId: string,
-    dto: CreateTaskDto,
+    dto: CreateTaskDto
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
@@ -501,7 +504,7 @@ export class TasksService {
           taskId: savedTask.id,
           workspaceMemberId: memberId,
           assignedById: workspaceMember.id,
-        }),
+        })
       );
       await this.taskAssigneeRepository.save(assignees);
 
@@ -541,7 +544,7 @@ export class TasksService {
     workspaceId: string,
     taskListId: string,
     userId: string,
-    filters: TaskFilterDto = {},
+    filters: TaskFilterDto = {}
   ): Promise<ResponseItem<{ tasks: TaskDto[]; total: number; page: number; hasMore: boolean }>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
@@ -591,15 +594,11 @@ export class TasksService {
         page,
         hasMore: page * size < total,
       },
-      'Tasks fetched successfully',
+      'Tasks fetched successfully'
     );
   }
 
-  async getTaskById(
-    workspaceId: string,
-    taskId: string,
-    userId: string,
-  ): Promise<ResponseItem<TaskDto>> {
+  async getTaskById(workspaceId: string, taskId: string, userId: string): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId, true);
     await this.verifyChannelMembership(task.channelId, workspaceMember.id);
@@ -610,7 +609,7 @@ export class TasksService {
     workspaceId: string,
     taskId: string,
     userId: string,
-    dto: UpdateTaskDto,
+    dto: UpdateTaskDto
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
@@ -667,11 +666,81 @@ export class TasksService {
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'Task updated successfully');
   }
 
-  async deleteTask(
+  private getTaskAttachmentMaxMb(): number {
+    return resolveMaxUploadMb(this.configService.get<number>('TASK_ATTACHMENT_MAX_MB'));
+  }
+
+  private assertTaskAttachmentUpload(file: Express.Multer.File): void {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const maxMb = this.getTaskAttachmentMaxMb();
+    if (file.size > maxMb * 1024 * 1024) {
+      throw new BadRequestException(`File exceeds maximum size (${maxMb} MB)`);
+    }
+
+    if (!isAllowedUploadFileType(file)) {
+      throw new BadRequestException('File type is not allowed');
+    }
+  }
+
+  private createTaskFileAttachmentRow(
+    file: Express.Multer.File,
+    uploaded: { url: string; objectPath: string }
+  ): Record<string, unknown> {
+    const displayName = path.basename(file.originalname || 'file').slice(0, 500);
+
+    return {
+      id: randomUUID(),
+      type: 'file',
+      name: displayName,
+      url: uploaded.url,
+      fileId: uploaded.objectPath,
+      size: file.size,
+      mimeType: file.mimetype?.slice(0, 255) || undefined,
+    };
+  }
+
+  async uploadTaskAttachment(
     workspaceId: string,
     taskId: string,
     userId: string,
-  ): Promise<ResponseItem<{ message: string }>> {
+    file: Express.Multer.File
+  ): Promise<ResponseItem<TaskDto>> {
+    this.assertTaskAttachmentUpload(file);
+
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
+    const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
+
+    const isOwner = task.createdById === workspaceMember.id;
+    const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
+
+    this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
+
+    const rawExisting = Array.isArray(task.attachments) ? [...task.attachments] : [];
+    const count = rawExisting.filter((x) => x && typeof x === 'object').length;
+    if (count >= TasksService.MAX_ATTACHMENTS) {
+      throw new BadRequestException(`Maximum attachment count (${TasksService.MAX_ATTACHMENTS}) reached`);
+    }
+
+    const uploaded = await this.storageService.uploadFile({
+      buffer: file.buffer,
+      originalFilename: file.originalname || 'file',
+      mimeType: file.mimetype,
+      directory: ['workspaces', workspaceId, 'tasks', taskId, 'attachments'],
+    });
+
+    task.attachments = [...rawExisting, this.createTaskFileAttachmentRow(file, uploaded)];
+    task.updatedById = workspaceMember.id;
+    await this.taskRepository.save(task);
+
+    const full = await this.getTaskOrFail(taskId, workspaceId, true);
+    return new ResponseItem<TaskDto>(this.mapTaskToDto(full), 'Attachment uploaded successfully');
+  }
+
+  async deleteTask(workspaceId: string, taskId: string, userId: string): Promise<ResponseItem<{ message: string }>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
@@ -702,7 +771,7 @@ export class TasksService {
     workspaceId: string,
     taskId: string,
     userId: string,
-    dto: AssignTaskDto,
+    dto: AssignTaskDto
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
@@ -757,7 +826,7 @@ export class TasksService {
     workspaceId: string,
     taskId: string,
     userId: string,
-    memberId: string,
+    memberId: string
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
@@ -790,7 +859,7 @@ export class TasksService {
   async getMyTasks(
     workspaceId: string,
     userId: string,
-    filters: TaskFilterDto = {},
+    filters: TaskFilterDto = {}
   ): Promise<ResponseItem<{ tasks: TaskDto[]; total: number; page: number; hasMore: boolean }>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
 
@@ -844,7 +913,7 @@ export class TasksService {
         page,
         hasMore: page * size < total,
       },
-      'My tasks fetched successfully',
+      'My tasks fetched successfully'
     );
   }
 }
