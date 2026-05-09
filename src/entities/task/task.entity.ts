@@ -12,7 +12,6 @@ import { WorkspaceEntity } from '../workspace/workspace.entity';
 import { ChannelEntity } from '../channel/channel.entity';
 import { WorkspaceMemberEntity } from '../workspace/workspace-member.entity';
 import { TaskAssigneeEntity } from './task-assignee.entity';
-import { TaskCommentEntity } from './task-comment.entity';
 import { TaskListEntity } from './task-list.entity';
 
 export enum TaskStatus {
@@ -54,6 +53,20 @@ export class TaskEntity {
   @JoinColumn({ name: 'taskListId' })
   taskList?: TaskListEntity | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  parentTaskId?: string | null;
+
+  @ManyToOne(() => TaskEntity, (t) => t.subtasks, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'parentTaskId' })
+  parentTask?: TaskEntity | null;
+
+  /** Subtasks — only one level (parent tasks must not themselves be subtasks when created via API). */
+  @OneToMany(() => TaskEntity, (t) => t.parentTask)
+  subtasks?: TaskEntity[];
+
+  @Column({ type: 'simple-json', nullable: true })
+  attachments?: Record<string, unknown>[] | null;
+
   @Column({ type: 'varchar', length: 500 })
   title: string;
 
@@ -94,7 +107,4 @@ export class TaskEntity {
 
   @OneToMany(() => TaskAssigneeEntity, (assignee) => assignee.task)
   assignees: TaskAssigneeEntity[];
-
-  @OneToMany(() => TaskCommentEntity, (comment) => comment.task)
-  comments: TaskCommentEntity[];
 }

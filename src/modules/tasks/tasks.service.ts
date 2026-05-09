@@ -5,23 +5,21 @@ import { ResponseItem } from '@app/common/dtos';
 import {
   TaskEntity,
   TaskAssigneeEntity,
-  TaskCommentEntity,
   TaskListEntity,
   ChannelEntity,
   ChannelMemberEntity,
   WorkspaceMemberEntity,
 } from '@app/entities';
 import { WorkspaceMemberStatusEnum } from '@Constant/enums';
+import { TaskStatus } from '@app/entities/task/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskDto, TaskAssigneeDto } from './dto/task.dto';
+import { TaskAttachmentDto, TaskAttachmentInputDto } from './dto/task-attachment.dto';
 import { TaskFilterDto } from './dto/task-filter.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskListDto } from './dto/create-task-list.dto';
 import { UpdateTaskListDto } from './dto/update-task-list.dto';
-import { CreateTaskCommentDto } from './dto/create-task-comment.dto';
-import { UpdateTaskCommentDto } from './dto/update-task-comment.dto';
-import { TaskCommentDto } from './dto/task-comment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
 import { canPerformTaskAction, TaskPermissionAction, TaskPermissionContext } from '../../policy/task/task-permission.config';
@@ -33,8 +31,6 @@ export class TasksService {
     private readonly taskRepository: Repository<TaskEntity>,
     @InjectRepository(TaskAssigneeEntity)
     private readonly taskAssigneeRepository: Repository<TaskAssigneeEntity>,
-    @InjectRepository(TaskCommentEntity)
-    private readonly taskCommentRepository: Repository<TaskCommentEntity>,
     @InjectRepository(TaskListEntity)
     private readonly taskListRepository: Repository<TaskListEntity>,
     @InjectRepository(ChannelEntity)
@@ -108,10 +104,32 @@ export class TasksService {
     return taskList;
   }
 
-  private async getTaskOrFail(taskId: string, workspaceId: string): Promise<TaskEntity> {
+  private readonly taskDetailRelations = [
+    'assignees',
+    'assignees.workspaceMember',
+    'assignees.workspaceMember.user',
+    'createdBy',
+    'createdBy.user',
+    'subtasks',
+    'subtasks.assignees',
+    'subtasks.assignees.workspaceMember',
+    'subtasks.assignees.workspaceMember.user',
+    'subtasks.createdBy',
+    'subtasks.createdBy.user',
+  ] as const;
+
+  private async getTaskOrFail(taskId: string, workspaceId: string, withChildren = false): Promise<TaskEntity> {
     const task = await this.taskRepository.findOne({
       where: { id: taskId, workspaceId, deletedAt: IsNull() },
-      relations: ['assignees', 'assignees.workspaceMember', 'assignees.workspaceMember.user', 'createdBy', 'createdBy.user'],
+      relations: withChildren
+        ? [...this.taskDetailRelations]
+        : [
+            'assignees',
+            'assignees.workspaceMember',
+            'assignees.workspaceMember.user',
+            'createdBy',
+            'createdBy.user',
+          ],
     });
     if (!task) {
       throw new NotFoundException('Task not found');
@@ -119,8 +137,50 @@ export class TasksService {
     return task;
   }
 
-  private mapTaskToDto(task: TaskEntity): TaskDto {
-    const assigneeDtos: TaskAssigneeDto[] = (task.assignees || []).map((a) => ({
+  private mapAttachmentsStored(raw?: Record<string, unknown>[] | null): TaskAttachmentDto[] {
+    if (!Array.isArray(raw)) return [];
+    const out: TaskAttachmentDto[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const r = item as Record<string, unknown>;
+      const type = r.type;
+      if (type !== 'canvas' && type !== 'file') continue;
+      const name = String(r.name ?? '').slice(0, 500);
+      if (!name) continue;
+      out.push({
+        id: typeof r.id === 'string' ? r.id : undefined,
+        type,
+        name,
+        url: typeof r.url === 'string' ? r.url : undefined,
+        canvasId: typeof r.canvasId === 'string' ? r.canvasId : undefined,
+        fileId: typeof r.fileId === 'string' ? r.fileId : undefined,
+      });
+      if (out.length >= 50) break;
+    }
+    return out;
+  }
+
+  private normalizeAttachmentsInput(input?: TaskAttachmentInputDto[] | null): Record<string, unknown>[] {
+    if (!input?.length) return [];
+    const out: Record<string, unknown>[] = [];
+    for (const a of input) {
+      if (!a?.type || !(a.name || '').trim()) continue;
+      const row: Record<string, unknown> = {
+        type: a.type,
+        name: a.name.trim().slice(0, 500),
+      };
+      if (a.id) row.id = a.id;
+      if (a.url) row.url = a.url.slice(0, 2000);
+      if (a.canvasId) row.canvasId = a.canvasId;
+      if (a.fileId) row.fileId = a.fileId.slice(0, 255);
+      out.push(row);
+      if (out.length >= 50) break;
+    }
+    return out;
+  }
+
+  private assigneesToDto(assignees?: TaskAssigneeEntity[]): TaskAssigneeDto[] {
+    return (assignees || []).map((a) => ({
       id: a.id,
       workspaceMemberId: a.workspaceMemberId,
       userId: a.workspaceMember?.userId,
@@ -129,11 +189,16 @@ export class TasksService {
       avatar: a.workspaceMember?.user?.avatar || null,
       assignedAt: a.assignedAt,
     }));
+  }
 
+  private mapTaskToLeaf(task: TaskEntity): TaskDto {
     return {
       id: task.id,
       workspaceId: task.workspaceId,
       channelId: task.channelId,
+      taskListId: task.taskListId ?? null,
+      parentTaskId: task.parentTaskId ?? null,
+      attachments: this.mapAttachmentsStored(task.attachments ?? null),
       title: task.title,
       description: task.description,
       status: task.status,
@@ -142,77 +207,71 @@ export class TasksService {
       createdById: task.createdById,
       creatorName: task.createdBy?.user?.name,
       creatorEmail: task.createdBy?.user?.email,
-      assignees: assigneeDtos,
+      reporterWorkspaceMemberId: task.createdById,
+      reporterUserId: task.createdBy?.user?.id,
+      reporterName: task.createdBy?.user?.name,
+      reporterEmail: task.createdBy?.user?.email,
+      assignees: this.assigneesToDto(task.assignees),
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
   }
 
-  private mapCommentToDto(comment: TaskCommentEntity): TaskCommentDto {
-    return {
-      id: comment.id,
-      taskId: comment.taskId,
-      workspaceMemberId: comment.workspaceMemberId,
-      userId: comment.workspaceMember?.userId,
-      authorName: comment.workspaceMember?.user?.name,
-      authorEmail: comment.workspaceMember?.user?.email,
-      authorAvatar: comment.workspaceMember?.user?.avatar || null,
-      content: comment.content,
-      mentions: comment.mentions || [],
-      parentCommentId: comment.parentCommentId ?? null,
-      createdAt: comment.createdAt,
-      editedAt: comment.editedAt ?? null,
-      deletedAt: comment.deletedAt ?? null,
-    };
-  }
-
-  private async getCommentOrFail(commentId: string, taskId: string): Promise<TaskCommentEntity> {
-    const comment = await this.taskCommentRepository.findOne({
-      where: { id: commentId, taskId },
-      relations: ['workspaceMember', 'workspaceMember.user'],
-    });
-    if (!comment) {
-      throw new NotFoundException('Comment not found');
+  private mapTaskToDto(task: TaskEntity): TaskDto {
+    const dto = this.mapTaskToLeaf(task);
+    const rawChildren = task.subtasks || [];
+    if (rawChildren.length) {
+      dto.subtasks = rawChildren
+        .filter((c) => !c.deletedAt)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        .map((c) => this.mapTaskToLeaf(c));
     }
-    return comment;
+    return dto;
   }
 
-  private async normalizeMentionMemberIds(
+  /** When every non-deleted subtask is Done, mark parent Done once (no automatic downgrade when a subtask reopens). */
+  private async maybeRollupParentDone(
     workspaceId: string,
-    channelId: string,
-    mentionMemberIds: string[] = [],
-  ): Promise<string[]> {
-    if (!mentionMemberIds.length) return [];
-    const uniqueIds = Array.from(new Set(mentionMemberIds.filter(Boolean)));
-    const validMemberIds: string[] = [];
-    for (const memberId of uniqueIds) {
-      const member = await this.workspaceMemberRepository.findOne({
-        where: { id: memberId, workspaceId, status: WorkspaceMemberStatusEnum.ACTIVE },
-      });
-      if (!member) continue;
-      const channelMember = await this.channelMemberRepository.findOne({
-        where: { channelId, memberId },
-      });
-      if (channelMember) {
-        validMemberIds.push(memberId);
-      }
-    }
-    return validMemberIds;
-  }
-
-  private async resolveMentionRecipientUserIds(
-    mentionMemberIds: string[],
+    parentId: string | null | undefined,
     actorUserId: string,
-  ): Promise<string[]> {
-    if (!mentionMemberIds.length) return [];
-    const members = await this.workspaceMemberRepository.find({
-      where: mentionMemberIds.map((id) => ({ id })),
-      relations: ['user'],
+  ): Promise<void> {
+    if (!parentId) return;
+    const siblings = await this.taskRepository.find({
+      where: { workspaceId, parentTaskId: parentId, deletedAt: IsNull() },
     });
-    const recipientUserIds = members
-      .map((member) => member.user?.id)
+    if (!siblings.length) return;
+    if (!siblings.every((t) => t.status === TaskStatus.DONE)) return;
+
+    let parent = await this.getTaskOrFail(parentId, workspaceId);
+    if (parent.status === TaskStatus.DONE) return;
+
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, actorUserId);
+    await this.verifyChannelMembership(parent.channelId, workspaceMember.id);
+
+    parent.status = TaskStatus.DONE;
+    parent.updatedById = workspaceMember.id;
+    await this.taskRepository.save(parent);
+
+    const withAssignees = await this.getTaskOrFail(parentId, workspaceId);
+    if (!withAssignees.assignees?.length) return;
+
+    const assigneeUserIds = withAssignees.assignees
+      .map((a) => a.workspaceMember?.user?.id)
       .filter((id) => Boolean(id) && id !== actorUserId);
-    return Array.from(new Set(recipientUserIds));
+    if (assigneeUserIds.length === 0) return;
+
+    await this.notificationsService.publishEvent({
+      type: 'task.status_changed',
+      workspaceId,
+      actorUserId,
+      payload: {
+        recipientUserIds: assigneeUserIds,
+        actorName: workspaceMember.user?.name || 'Someone',
+        taskTitle: withAssignees.title,
+        status: withAssignees.status,
+        targetUrl: `/channels/${withAssignees.channelId}`,
+      },
+    });
   }
 
   // ─── TaskList CRUD ────────────────────────────────────────
@@ -401,15 +460,34 @@ export class TasksService {
     const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
     this.enforceTaskAction(channelMember, 'task:create');
 
+    let parentTaskId: string | null = null;
+    if (dto.parentTaskId) {
+      const parent = await this.getTaskOrFail(dto.parentTaskId, workspaceId);
+      if (parent.taskListId !== taskList.id) {
+        throw new ConflictException('Subtask parent must belong to the same task list');
+      }
+      if (parent.parentTaskId) {
+        throw new ConflictException('Nested subtasks deeper than one level are not supported');
+      }
+      parentTaskId = parent.id;
+    }
+
+    const attachments =
+      dto.attachments !== undefined && dto.attachments.length > 0
+        ? this.normalizeAttachmentsInput(dto.attachments)
+        : [];
+
     const task = this.taskRepository.create({
       workspaceId,
       channelId: taskList.channelId,
       taskListId: taskList.id,
+      parentTaskId,
       title: dto.title,
       description: dto.description || null,
-      status: dto.status || 'todo',
+      status: dto.status || TaskStatus.TODO,
       priority: dto.priority || 'medium',
       dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      attachments: attachments.length ? attachments : null,
       createdById: workspaceMember.id,
       updatedById: workspaceMember.id,
     });
@@ -451,7 +529,11 @@ export class TasksService {
       }
     }
 
-    const fullTask = await this.getTaskOrFail(savedTask.id, workspaceId);
+    if (parentTaskId && savedTask.status === TaskStatus.DONE) {
+      await this.maybeRollupParentDone(workspaceId, parentTaskId, userId);
+    }
+
+    const fullTask = await this.getTaskOrFail(savedTask.id, workspaceId, true);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(fullTask), 'Task created successfully');
   }
 
@@ -491,14 +573,20 @@ export class TasksService {
 
     query.orderBy('task.createdAt', 'ASC');
 
-    const [tasks, total] = await query
+    const [rawTasks, total] = await query
       .skip((page - 1) * size)
       .take(size)
       .getManyAndCount();
 
+    const uniq = new Map<string, TaskEntity>();
+    for (const t of rawTasks) {
+      if (!uniq.has(t.id)) uniq.set(t.id, t);
+    }
+    const tasks = [...uniq.values()];
+
     return new ResponseItem(
       {
-        tasks: tasks.map((t) => this.mapTaskToDto(t)),
+        tasks: tasks.map((t) => this.mapTaskToLeaf(t)),
         total,
         page,
         hasMore: page * size < total,
@@ -513,7 +601,7 @@ export class TasksService {
     userId: string,
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
-    const task = await this.getTaskOrFail(taskId, workspaceId);
+    const task = await this.getTaskOrFail(taskId, workspaceId, true);
     await this.verifyChannelMembership(task.channelId, workspaceMember.id);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(task), 'Task fetched successfully');
   }
@@ -542,9 +630,17 @@ export class TasksService {
     if (dto.dueDate !== undefined) {
       task.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
     }
+    if (dto.attachments !== undefined) {
+      const att = this.normalizeAttachmentsInput(dto.attachments);
+      task.attachments = att.length ? att : null;
+    }
     task.updatedById = workspaceMember.id;
 
     await this.taskRepository.save(task);
+
+    if (task.parentTaskId) {
+      await this.maybeRollupParentDone(workspaceId, task.parentTaskId, userId);
+    }
 
     if (statusChanged && task.assignees?.length > 0) {
       const assigneeUserIds = task.assignees
@@ -567,7 +663,7 @@ export class TasksService {
       }
     }
 
-    const updatedTask = await this.getTaskOrFail(taskId, workspaceId);
+    const updatedTask = await this.getTaskOrFail(taskId, workspaceId, true);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'Task updated successfully');
   }
 
@@ -583,6 +679,15 @@ export class TasksService {
     const isOwner = task.createdById === workspaceMember.id;
 
     this.enforceTaskAction(channelMember, 'task:delete', { isCreator: isOwner });
+
+    const children = await this.taskRepository.find({
+      where: { parentTaskId: taskId, deletedAt: IsNull() },
+    });
+    for (const child of children) {
+      child.deletedAt = new Date();
+      child.updatedById = workspaceMember.id;
+      await this.taskRepository.save(child);
+    }
 
     task.deletedAt = new Date();
     task.updatedById = workspaceMember.id;
@@ -644,7 +749,7 @@ export class TasksService {
       });
     }
 
-    const updatedTask = await this.getTaskOrFail(taskId, workspaceId);
+    const updatedTask = await this.getTaskOrFail(taskId, workspaceId, true);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'User assigned to task');
   }
 
@@ -676,170 +781,8 @@ export class TasksService {
 
     await this.taskAssigneeRepository.remove(assignee);
 
-    const updatedTask = await this.getTaskOrFail(taskId, workspaceId);
+    const updatedTask = await this.getTaskOrFail(taskId, workspaceId, true);
     return new ResponseItem<TaskDto>(this.mapTaskToDto(updatedTask), 'User unassigned from task');
-  }
-
-  // ─── Task Comments ───────────────────────────────────────
-
-  async addComment(
-    workspaceId: string,
-    taskId: string,
-    userId: string,
-    dto: CreateTaskCommentDto,
-  ): Promise<ResponseItem<TaskCommentDto>> {
-    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
-    const task = await this.getTaskOrFail(taskId, workspaceId);
-    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
-    this.enforceTaskAction(channelMember, 'task:comment');
-
-    if (dto.parentCommentId) {
-      const parent = await this.getCommentOrFail(dto.parentCommentId, task.id);
-      if (parent.deletedAt) {
-        throw new NotFoundException('Parent comment is deleted');
-      }
-    }
-
-    const mentionMemberIds = await this.normalizeMentionMemberIds(
-      workspaceId,
-      task.channelId,
-      dto.mentions || [],
-    );
-
-    const comment = this.taskCommentRepository.create({
-      taskId: task.id,
-      workspaceMemberId: workspaceMember.id,
-      content: dto.content.trim(),
-      mentions: mentionMemberIds,
-      parentCommentId: dto.parentCommentId || null,
-    });
-    const saved = await this.taskCommentRepository.save(comment);
-    const fullComment = await this.getCommentOrFail(saved.id, task.id);
-
-    const recipientUserIds = await this.resolveMentionRecipientUserIds(mentionMemberIds, userId);
-    if (recipientUserIds.length > 0) {
-      await this.notificationsService.publishEvent({
-        type: 'task.comment_mentioned',
-        workspaceId,
-        actorUserId: userId,
-        entityType: 'task_comment',
-        entityId: saved.id,
-        payload: {
-          recipientUserIds,
-          actorName: workspaceMember.user?.name || 'Someone',
-          taskTitle: task.title,
-          preview: dto.content.slice(0, 180),
-          channelId: task.channelId,
-          taskId: task.id,
-          commentId: saved.id,
-          targetUrl: `/workspaces/${workspaceId}`,
-        },
-      });
-    }
-
-    return new ResponseItem<TaskCommentDto>(this.mapCommentToDto(fullComment), 'Comment added successfully');
-  }
-
-  async getComments(
-    workspaceId: string,
-    taskId: string,
-    userId: string,
-  ): Promise<ResponseItem<TaskCommentDto[]>> {
-    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
-    const task = await this.getTaskOrFail(taskId, workspaceId);
-    await this.verifyChannelMembership(task.channelId, workspaceMember.id);
-
-    const comments = await this.taskCommentRepository.find({
-      where: { taskId: task.id },
-      relations: ['workspaceMember', 'workspaceMember.user'],
-      order: { createdAt: 'ASC' },
-    });
-    return new ResponseItem<TaskCommentDto[]>(
-      comments.map((comment) => this.mapCommentToDto(comment)),
-      'Task comments fetched successfully',
-    );
-  }
-
-  async updateComment(
-    workspaceId: string,
-    taskId: string,
-    commentId: string,
-    userId: string,
-    dto: UpdateTaskCommentDto,
-  ): Promise<ResponseItem<TaskCommentDto>> {
-    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
-    const task = await this.getTaskOrFail(taskId, workspaceId);
-    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
-    this.enforceTaskAction(channelMember, 'task:comment');
-
-    const comment = await this.getCommentOrFail(commentId, task.id);
-    const isAuthor = comment.workspaceMemberId === workspaceMember.id;
-    const canManageAll = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole)?.permissions?.actions?.['task:*'] === true;
-    if (!isAuthor && !canManageAll) {
-      throw new ForbiddenException('You can only edit your own comments');
-    }
-    if (comment.deletedAt) {
-      throw new NotFoundException('Comment is deleted');
-    }
-
-    if (dto.content !== undefined) {
-      comment.content = dto.content.trim();
-      comment.editedAt = new Date();
-    }
-    if (dto.mentions !== undefined) {
-      comment.mentions = await this.normalizeMentionMemberIds(workspaceId, task.channelId, dto.mentions);
-    }
-    await this.taskCommentRepository.save(comment);
-
-    const recipientUserIds = await this.resolveMentionRecipientUserIds(comment.mentions || [], userId);
-    if (recipientUserIds.length > 0) {
-      await this.notificationsService.publishEvent({
-        type: 'task.comment_mentioned',
-        workspaceId,
-        actorUserId: userId,
-        entityType: 'task_comment',
-        entityId: comment.id,
-        payload: {
-          recipientUserIds,
-          actorName: workspaceMember.user?.name || 'Someone',
-          taskTitle: task.title,
-          preview: comment.content.slice(0, 180),
-          channelId: task.channelId,
-          taskId: task.id,
-          commentId: comment.id,
-          targetUrl: `/workspaces/${workspaceId}`,
-        },
-      });
-    }
-
-    const updated = await this.getCommentOrFail(comment.id, task.id);
-    return new ResponseItem<TaskCommentDto>(this.mapCommentToDto(updated), 'Comment updated successfully');
-  }
-
-  async deleteComment(
-    workspaceId: string,
-    taskId: string,
-    commentId: string,
-    userId: string,
-  ): Promise<ResponseItem<{ message: string }>> {
-    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
-    const task = await this.getTaskOrFail(taskId, workspaceId);
-    const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
-    this.enforceTaskAction(channelMember, 'task:comment');
-
-    const comment = await this.getCommentOrFail(commentId, task.id);
-    const isAuthor = comment.workspaceMemberId === workspaceMember.id;
-    const canManageAll = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole)?.permissions?.actions?.['task:*'] === true;
-    if (!isAuthor && !canManageAll) {
-      throw new ForbiddenException('You can only delete your own comments');
-    }
-    if (comment.deletedAt) {
-      return new ResponseItem({ message: 'Comment already deleted' }, 'Comment deleted successfully');
-    }
-
-    comment.deletedAt = new Date();
-    await this.taskCommentRepository.save(comment);
-    return new ResponseItem({ message: 'Comment deleted' }, 'Comment deleted successfully');
   }
 
   // ─── My Tasks ─────────────────────────────────────────────
@@ -896,7 +839,7 @@ export class TasksService {
 
     return new ResponseItem(
       {
-        tasks: tasks.map((t) => this.mapTaskToDto(t)),
+        tasks: tasks.map((t) => this.mapTaskToLeaf(t)),
         total,
         page,
         hasMore: page * size < total,

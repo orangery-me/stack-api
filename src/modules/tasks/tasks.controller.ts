@@ -10,9 +10,6 @@ import { TaskFilterDto } from './dto/task-filter.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskListDto } from './dto/create-task-list.dto';
 import { UpdateTaskListDto } from './dto/update-task-list.dto';
-import { CreateTaskCommentDto } from './dto/create-task-comment.dto';
-import { UpdateTaskCommentDto } from './dto/update-task-comment.dto';
-import { TaskCommentDto } from './dto/task-comment.dto';
 
 @ApiTags('tasks')
 @Controller()
@@ -212,65 +209,5 @@ export class TasksController {
     @Param('memberId') memberId: string,
   ): Promise<ResponseItem<TaskDto>> {
     return this.tasksService.unassignTask(workspaceId, taskId, request.user.userId, memberId);
-  }
-
-  // ─── Task Comments ───────────────────────────────────────
-
-  @UseGuards(JwtAccessTokenGuard)
-  @Post('workspaces/:workspaceId/tasks/:taskId/comments')
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Create comment for a task' })
-  @ApiBody({ type: CreateTaskCommentDto })
-  @ApiResponse({ status: 201, type: TaskCommentDto })
-  async addComment(
-    @Req() request,
-    @Param('workspaceId') workspaceId: string,
-    @Param('taskId') taskId: string,
-    @Body() dto: CreateTaskCommentDto,
-  ): Promise<ResponseItem<TaskCommentDto>> {
-    return this.tasksService.addComment(workspaceId, taskId, request.user.userId, dto);
-  }
-
-  @UseGuards(JwtAccessTokenGuard)
-  @Get('workspaces/:workspaceId/tasks/:taskId/comments')
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get task comments' })
-  @ApiResponse({ status: 200, type: [TaskCommentDto] })
-  async getComments(
-    @Req() request,
-    @Param('workspaceId') workspaceId: string,
-    @Param('taskId') taskId: string,
-  ): Promise<ResponseItem<TaskCommentDto[]>> {
-    return this.tasksService.getComments(workspaceId, taskId, request.user.userId);
-  }
-
-  @UseGuards(JwtAccessTokenGuard)
-  @Patch('workspaces/:workspaceId/tasks/:taskId/comments/:commentId')
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update task comment' })
-  @ApiBody({ type: UpdateTaskCommentDto })
-  @ApiResponse({ status: 200, type: TaskCommentDto })
-  async updateComment(
-    @Req() request,
-    @Param('workspaceId') workspaceId: string,
-    @Param('taskId') taskId: string,
-    @Param('commentId') commentId: string,
-    @Body() dto: UpdateTaskCommentDto,
-  ): Promise<ResponseItem<TaskCommentDto>> {
-    return this.tasksService.updateComment(workspaceId, taskId, commentId, request.user.userId, dto);
-  }
-
-  @UseGuards(JwtAccessTokenGuard)
-  @Delete('workspaces/:workspaceId/tasks/:taskId/comments/:commentId')
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Delete task comment' })
-  @ApiResponse({ status: 200 })
-  async deleteComment(
-    @Req() request,
-    @Param('workspaceId') workspaceId: string,
-    @Param('taskId') taskId: string,
-    @Param('commentId') commentId: string,
-  ): Promise<ResponseItem<{ message: string }>> {
-    return this.tasksService.deleteComment(workspaceId, taskId, commentId, request.user.userId);
   }
 }

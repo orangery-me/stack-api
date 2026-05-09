@@ -4,8 +4,7 @@ export type TaskPermissionAction =
   | 'task:create'
   | 'task:view'
   | 'task:update'
-  | 'task:delete'
-  | 'task:comment';
+  | 'task:delete';
 
 export interface TaskPermissionContext {
   isCreator?: boolean;

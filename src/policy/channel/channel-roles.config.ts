@@ -33,7 +33,6 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
         'message:view': true,
         'task:create': true,
         'task:view': true,
-        'task:comment': true,
         'task:update_own': true,
         'task:delete_own': true,
       },

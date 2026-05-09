@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsString,
   IsOptional,
@@ -8,8 +9,11 @@ import {
   MaxLength,
   IsNotEmpty,
   IsUUID,
+  ValidateNested,
+  ArrayMaxSize,
 } from 'class-validator';
 import { TaskStatus, TaskPriority } from '@app/entities/task/task.entity';
+import { TaskAttachmentInputDto } from './task-attachment.dto';
 
 export class CreateTaskDto {
   @ApiProperty({ description: 'Task title', maxLength: 500 })
@@ -43,4 +47,17 @@ export class CreateTaskDto {
   @IsArray()
   @IsUUID('4', { each: true })
   assigneeIds?: string[];
+
+  @ApiProperty({ required: false, description: 'Parent task ID (single-level subtasks only)', format: 'uuid' })
+  @IsOptional()
+  @IsUUID('4')
+  parentTaskId?: string | null;
+
+  @ApiProperty({ required: false, type: () => [TaskAttachmentInputDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskAttachmentInputDto)
+  @ArrayMaxSize(50)
+  attachments?: TaskAttachmentInputDto[];
 }

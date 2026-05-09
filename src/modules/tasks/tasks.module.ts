@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   TaskEntity,
   TaskAssigneeEntity,
-  TaskCommentEntity,
   TaskListEntity,
   ChannelEntity,
   ChannelMemberEntity,
@@ -18,7 +17,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
     TypeOrmModule.forFeature([
       TaskEntity,
       TaskAssigneeEntity,
-      TaskCommentEntity,
       TaskListEntity,
       ChannelEntity,
       ChannelMemberEntity,

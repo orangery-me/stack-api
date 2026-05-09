@@ -68,16 +68,6 @@ export class NotificationRulesService {
           icon: 'fc-sms',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
-      case 'task.comment_mentioned':
-        return {
-          recipientUserIds,
-          deliveryChannels: ['in_app', 'websocket'],
-          title: 'You were mentioned in a task comment',
-          body: payload?.preview || `mentioned you in task '${payload?.taskTitle || 'Untitled Task'}'.`,
-          actorName: payload?.actorName || 'A teammate',
-          icon: 'fc-briefcase',
-          targetUrl: payload?.targetUrl || '/workspaces',
-        };
       default:
         return {
           recipientUserIds,
