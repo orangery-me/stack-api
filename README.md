@@ -8,6 +8,11 @@
 
 # Stack App - Backend API
 
+## Source code of related services and server
+- stack-agent: https://github.com/orangery-me/stack-agent
+- stack-chat: https://github.com/orangery-me/stack-chat
+- canvas-collab-server : https://github.com/orangery-me/canvas-collab-server
+
 ## Table of contents
 
 - [Stack App - Backend API](#stack-app---backend-api)
