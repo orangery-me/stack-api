@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   TaskEntity,
   TaskAssigneeEntity,
-  TaskCommentEntity,
   TaskListEntity,
   ChannelEntity,
   ChannelMemberEntity,
@@ -12,13 +12,15 @@ import {
 import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
+    ConfigModule,
+    StorageModule,
     TypeOrmModule.forFeature([
       TaskEntity,
       TaskAssigneeEntity,
-      TaskCommentEntity,
       TaskListEntity,
       ChannelEntity,
       ChannelMemberEntity,

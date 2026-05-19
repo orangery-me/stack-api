@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { TaskAttachmentDto } from './task-attachment.dto';
 
 export class TaskAssigneeDto {
   @ApiProperty()
@@ -33,6 +34,18 @@ export class TaskDto {
   @ApiProperty()
   channelId: string;
 
+  @ApiProperty({ required: false })
+  taskListId?: string | null;
+
+  @ApiProperty({ required: false })
+  parentTaskId?: string | null;
+
+  @ApiProperty({ type: [TaskAttachmentDto], required: false })
+  attachments?: TaskAttachmentDto[];
+
+  @ApiProperty({ type: [TaskDto], required: false })
+  subtasks?: TaskDto[];
+
   @ApiProperty()
   title: string;
 
@@ -56,6 +69,19 @@ export class TaskDto {
 
   @ApiProperty({ required: false })
   creatorEmail?: string;
+
+  /** Same as creator (workspace member id). */
+  @ApiProperty({ required: false })
+  reporterWorkspaceMemberId?: string;
+
+  @ApiProperty({ required: false })
+  reporterUserId?: string;
+
+  @ApiProperty({ required: false })
+  reporterName?: string;
+
+  @ApiProperty({ required: false })
+  reporterEmail?: string;
 
   @ApiProperty({ type: [TaskAssigneeDto], required: false })
   assignees?: TaskAssigneeDto[];

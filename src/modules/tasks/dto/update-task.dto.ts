@@ -1,6 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsDateString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsDateString,
+  MaxLength,
+  IsArray,
+  ValidateNested,
+  ArrayMaxSize,
+} from 'class-validator';
 import { TaskStatus, TaskPriority } from '@app/entities/task/task.entity';
+import { TaskAttachmentInputDto } from './task-attachment.dto';
 
 export class UpdateTaskDto {
   @ApiProperty({ required: false, description: 'Task title', maxLength: 500 })
@@ -28,4 +39,12 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsDateString()
   dueDate?: string | null;
+
+  @ApiProperty({ required: false, type: () => [TaskAttachmentInputDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskAttachmentInputDto)
+  @ArrayMaxSize(50)
+  attachments?: TaskAttachmentInputDto[];
 }

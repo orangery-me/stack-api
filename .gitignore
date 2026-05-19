@@ -38,3 +38,4 @@ lerna-debug.log*
 /.env
 /.env.production
 .cursor/
+stackauto-storage-key.json

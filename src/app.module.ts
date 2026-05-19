@@ -95,6 +95,18 @@ import * as Joi from 'joi';
         CANVAS_COLLAB_URL: Joi.string().default('http://localhost:1235'),
         CANVAS_COLLAB_SECRET: Joi.string().optional().default(''),
 
+        // GCS uploads (optional; sensible defaults applied in StorageService when unset)
+        GCP_STORAGE_BUCKET: Joi.string().allow('').optional(),
+        GCP_STORAGE_KEY_FILENAME: Joi.string().allow('').optional(),
+        GCS_UPLOAD_PREFIX: Joi.string().allow('').optional(),
+        TASK_ATTACHMENT_MAX_MB: Joi.number().integer().min(1).max(500).optional().default(15),
+
+        // Redis
+        REDIS_URL: Joi.string().optional().default('redis://localhost:6379'),
+
+        // Media Service
+        MEDIA_SERVICE_URL: Joi.string().optional().default('http://localhost:3000/api'),
+
         // Optional
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
         TZ: Joi.string().default('Asia/Ho_Chi_Minh'),
@@ -113,7 +125,7 @@ import * as Joi from 'joi';
     AgentModule,
     McpModule,
     NotificationsModule,
-    TasksModule,
+
   ],
   providers: [
     {
