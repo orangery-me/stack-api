@@ -171,6 +171,9 @@ export class TasksService {
       if (typeof r.mimeType === 'string' && r.mimeType.trim()) {
         dto.mimeType = r.mimeType.trim().slice(0, 255);
       }
+      if (typeof r.uploadedAt === 'string' && r.uploadedAt.trim()) {
+        dto.uploadedAt = r.uploadedAt;
+      }
       out.push(dto);
       if (out.length >= 50) break;
     }
@@ -194,6 +197,7 @@ export class TasksService {
         row.size = Math.floor(Number(a.size));
       }
       if (a.mimeType) row.mimeType = String(a.mimeType).slice(0, 255);
+      if (a.uploadedAt) row.uploadedAt = String(a.uploadedAt);
       out.push(row);
       if (out.length >= 50) break;
     }
@@ -463,6 +467,23 @@ export class TasksService {
     const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
     this.enforceTaskAction(channelMember, 'task:create');
 
+    let reporterMember = workspaceMember;
+    if (dto.reporterWorkspaceMemberId && dto.reporterWorkspaceMemberId !== workspaceMember.id) {
+      const targetReporter = await this.workspaceMemberRepository.findOne({
+        where: {
+          id: dto.reporterWorkspaceMemberId,
+          workspaceId,
+          status: WorkspaceMemberStatusEnum.ACTIVE,
+        },
+        relations: ['user'],
+      });
+      if (!targetReporter) {
+        throw new NotFoundException('Reporter not found');
+      }
+      await this.verifyChannelMembership(taskList.channelId, targetReporter.id);
+      reporterMember = targetReporter;
+    }
+
     let parentTaskId: string | null = null;
     if (dto.parentTaskId) {
       const parent = await this.getTaskOrFail(dto.parentTaskId, workspaceId);
@@ -491,7 +512,7 @@ export class TasksService {
       priority: dto.priority || 'medium',
       dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
       attachments: attachments.length ? attachments : null,
-      createdById: workspaceMember.id,
+      createdById: reporterMember.id,
       updatedById: workspaceMember.id,
     });
 
@@ -699,6 +720,7 @@ export class TasksService {
       fileId: uploaded.objectPath,
       size: file.size,
       mimeType: file.mimetype?.slice(0, 255) || undefined,
+      uploadedAt: new Date().toISOString(),
     };
   }
 

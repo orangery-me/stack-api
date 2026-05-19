@@ -27,6 +27,9 @@ export class TaskAttachmentDto {
 
   @ApiProperty({ required: false })
   mimeType?: string;
+
+  @ApiProperty({ required: false, description: 'Upload timestamp for file attachments' })
+  uploadedAt?: string;
 }
 
 export class TaskAttachmentInputDto implements Pick<TaskAttachmentDto, 'type' | 'name'> {
@@ -75,4 +78,9 @@ export class TaskAttachmentInputDto implements Pick<TaskAttachmentDto, 'type' | 
   @IsString()
   @MaxLength(255)
   mimeType?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  uploadedAt?: string;
 }

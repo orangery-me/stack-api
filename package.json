@@ -18,7 +18,8 @@
     "prepare": "husky install",
     "seed": "yarn build && node dist/seed",
     "seed:dev": "ts-node -r tsconfig-paths/register src/seed.ts",
-    "deploy:check": "node scripts/deploy-check.js"
+    "deploy:check": "node scripts/deploy-check.js",
+    "dev": "nodemon src/server.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
@@ -47,6 +48,7 @@
     "class-validator": "^0.14.0",
     "cookie-parser": "^1.4.7",
     "google-auth-library": "^10.5.0",
+    "ioredis": "^5.10.1",
     "joi": "^17.13.3",
     "moment": "^2.30.1",
     "mongoose": "^7.5.0",

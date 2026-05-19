@@ -48,6 +48,11 @@ export class CreateTaskDto {
   @IsUUID('4', { each: true })
   assigneeIds?: string[];
 
+  @ApiProperty({ required: false, description: 'Reporter workspace member ID', format: 'uuid' })
+  @IsOptional()
+  @IsUUID('4')
+  reporterWorkspaceMemberId?: string;
+
   @ApiProperty({ required: false, description: 'Parent task ID (single-level subtasks only)', format: 'uuid' })
   @IsOptional()
   @IsUUID('4')
