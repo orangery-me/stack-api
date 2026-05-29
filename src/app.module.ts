@@ -20,6 +20,7 @@ import { AgentModule } from './modules/agent/agent.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { HuddleModule } from './modules/huddle/huddle.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -107,6 +108,11 @@ import * as Joi from 'joi';
         // Media Service
         MEDIA_SERVICE_URL: Joi.string().optional().default('http://localhost:3000/api'),
 
+        // LiveKit
+        LIVEKIT_API_KEY: Joi.string().optional().default('devkey'),
+        LIVEKIT_API_SECRET: Joi.string().optional().default('secret'),
+        LIVEKIT_URL: Joi.string().optional().default('ws://localhost:7880'),
+
         // Optional
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
         TZ: Joi.string().default('Asia/Ho_Chi_Minh'),
@@ -125,7 +131,7 @@ import * as Joi from 'joi';
     AgentModule,
     McpModule,
     NotificationsModule,
-
+    HuddleModule,
   ],
   providers: [
     {
