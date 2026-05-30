@@ -252,7 +252,7 @@ export class HuddleService {
       callEnded = true;
       this.logger.log(`Huddle ${call.id} ended (last participant left)`);
       await this.stopSubtitleSession(call.id);
-      await this.subtitleService.completeTranscriptForCall(call.id);
+      const completedTranscript = await this.subtitleService.completeTranscriptForCall(call.id);
 
       const channel = await this.channelRepo.findOne({ where: { id: channelId } });
       if (channel) {
@@ -269,6 +269,9 @@ export class HuddleService {
               channelId,
               startedAt: call.startedAt.toISOString(),
               endedAt: call.endedAt.toISOString(),
+              transcriptEnabled: Boolean(completedTranscript),
+              transcriptId: completedTranscript?.id || null,
+              transcriptSegmentCount: completedTranscript?.segmentCount || 0,
             },
           },
         });
@@ -416,7 +419,6 @@ export class HuddleService {
         language: 'vi',
       });
       if (started) {
-        await this.subtitleService.startTranscriptForCall(call.id, 'vi');
         this.logger.log(`Subtitle session started for huddle ${call.id}`);
       }
     } catch (error: any) {

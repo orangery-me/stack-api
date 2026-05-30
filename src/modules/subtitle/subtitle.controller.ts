@@ -32,6 +32,14 @@ export class SubtitleController {
     return this.subtitleService.stopTranscript(callId, req.user?.userId);
   }
 
+  @Get('call/:callId/status')
+  @UseGuards(JwtAccessTokenGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get transcript recording status for a call' })
+  getTranscriptStatus(@Param('callId') callId: string, @Req() req: any) {
+    return this.subtitleService.getTranscriptStatus(callId, req.user?.userId);
+  }
+
   @Get('call/:callId/transcript')
   @UseGuards(JwtAccessTokenGuard)
   @ApiBearerAuth('JWT-auth')

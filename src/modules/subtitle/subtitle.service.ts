@@ -58,6 +58,15 @@ export interface TranscriptReviewCanvasResponse {
   created: boolean;
 }
 
+export interface TranscriptStatusResponse {
+  call_id: string;
+  transcript_id: string | null;
+  status: CallTranscriptStatus | null;
+  recording: boolean;
+  segment_count: number;
+  review_canvas_id: string | null;
+}
+
 @Injectable()
 export class SubtitleService {
   private static readonly TRANSCRIPT_FLUSH_SILENCE_MS = 3000;
@@ -71,6 +80,7 @@ export class SubtitleService {
   private readonly transcriptSequenceCounters = new Map<string, number>();
   private readonly transcriptPersistenceLocks = new Map<string, Promise<void>>();
   private readonly committedTranscriptTextByBufferKey = new Map<string, string>();
+  private readonly transcriptRecordingStartMsByCall = new Map<string, number>();
 
   constructor(
     @InjectRepository(HuddleCall)
@@ -105,7 +115,7 @@ export class SubtitleService {
     this.huddleGateway.emitToChannel(dto.channel_id, 'subtitle:transcript', event);
 
     if (dto.is_final) {
-      await this.bufferFinalSegment(dto);
+      await this.bufferFinalSegment(dto, call);
     }
 
     return { segment_id: segmentId, accepted: true };
@@ -129,7 +139,10 @@ export class SubtitleService {
     const call = await this.getCallForUser(callId, userId);
     const existing = await this.callTranscriptRepo.findOne({ where: { callId: call.id } });
     if (existing) {
-      throw new ConflictException('Transcript already exists for this call');
+      if (existing.status === CallTranscriptStatus.RECORDING) {
+        return existing;
+      }
+      throw new ConflictException('Transcript already finalized for this call');
     }
 
     const transcript = this.callTranscriptRepo.create({
@@ -137,26 +150,31 @@ export class SubtitleService {
       language,
       status: CallTranscriptStatus.RECORDING,
     });
-    return this.callTranscriptRepo.save(transcript);
-  }
-
-  async startTranscriptForCall(callId: string, language = 'vi'): Promise<CallTranscript | null> {
-    const call = await this.huddleCallRepo.findOne({
-      where: { id: callId, status: HuddleCallStatus.ACTIVE },
-    });
-    if (!call) return null;
-
-    const existing = await this.callTranscriptRepo.findOne({ where: { callId: call.id } });
-    if (existing) return existing;
-
-    const transcript = this.callTranscriptRepo.create({
-      callId: call.id,
-      language,
-      status: CallTranscriptStatus.RECORDING,
-    });
     const saved = await this.callTranscriptRepo.save(transcript);
+    this.transcriptRecordingStartMsByCall.set(call.id, this.getCallElapsedMs(call, saved.createdAt || new Date()));
+    this.seedCommittedTranscriptTextFromActiveState(call.id);
+    this.huddleGateway.emitToChannel(call.channelId, 'subtitle:transcript_recording_started', {
+      call_id: call.id,
+      transcript_id: saved.id,
+      status: saved.status,
+      started_at: saved.createdAt?.toISOString?.() || new Date().toISOString(),
+    });
     this.logger.log(`Transcript recording started call=${call.id} transcript=${saved.id}`);
     return saved;
+  }
+
+  async getTranscriptStatus(callId: string, userId: string): Promise<TranscriptStatusResponse> {
+    const call = await this.getCallForUser(callId, userId);
+    const transcript = await this.callTranscriptRepo.findOne({ where: { callId: call.id } });
+
+    return {
+      call_id: call.id,
+      transcript_id: transcript?.id || null,
+      status: transcript?.status || null,
+      recording: transcript?.status === CallTranscriptStatus.RECORDING,
+      segment_count: transcript?.segmentCount || 0,
+      review_canvas_id: transcript?.reviewCanvasId || null,
+    };
   }
 
   async stopTranscript(callId: string, userId: string): Promise<CallTranscript> {
@@ -292,6 +310,7 @@ export class SubtitleService {
     transcript.segmentCount = await this.segmentRepo.count({ where: { transcriptId: transcript.id } });
     const saved = await this.callTranscriptRepo.save(transcript);
     this.transcriptSequenceCounters.delete(saved.id);
+    this.transcriptRecordingStartMsByCall.delete(call.id);
     this.clearCommittedTranscriptTextForCall(call.id);
     this.huddleGateway.emitToChannel(call.channelId, 'subtitle:transcript_saved', {
       call_id: call.id,
@@ -379,7 +398,7 @@ export class SubtitleService {
     return value.toISOString().slice(0, 16).replace('T', ' ');
   }
 
-  private async bufferFinalSegment(dto: TranscriptSegmentInputDto): Promise<void> {
+  private async bufferFinalSegment(dto: TranscriptSegmentInputDto, call: HuddleCall): Promise<void> {
     const transcript = await this.callTranscriptRepo.findOne({
       where: { callId: dto.call_id, status: CallTranscriptStatus.RECORDING },
     });
@@ -389,13 +408,16 @@ export class SubtitleService {
     if (!rawIncomingText) return;
 
     const bufferKey = this.getTranscriptBufferKey(dto);
+    const incomingEndMs = dto.end_ms ?? dto.start_ms;
+    const recordingStartMs = this.getTranscriptRecordingStartMs(call, transcript);
+    if (incomingEndMs < recordingStartMs) return;
+
     await this.flushOtherSpeakerBuffers(dto.call_id, bufferKey);
 
     const incomingText = this.extractUncommittedTranscriptText(bufferKey, rawIncomingText);
     if (!incomingText) return;
 
     const existing = this.activeTranscriptBuffers.get(bufferKey);
-    const incomingEndMs = dto.end_ms ?? dto.start_ms;
 
     if (!existing) {
       const buffer: TranscriptPersistenceBuffer = {
@@ -565,6 +587,36 @@ export class SubtitleService {
     return `${dto.call_id}:${speakerKey}`;
   }
 
+  private getTranscriptBufferKeyFromEvent(event: SubtitleTranscriptEvent): string {
+    const speakerKey = event.speaker_id || event.source_participant_identity || event.speaker_name;
+    return `${event.call_id}:${speakerKey}`;
+  }
+
+  private getTranscriptRecordingStartMs(call: HuddleCall, transcript: CallTranscript): number {
+    const existing = this.transcriptRecordingStartMsByCall.get(call.id);
+    if (existing !== undefined) return existing;
+
+    const startMs = this.getCallElapsedMs(call, transcript.createdAt);
+    this.transcriptRecordingStartMsByCall.set(call.id, startMs);
+    return startMs;
+  }
+
+  private getCallElapsedMs(call: HuddleCall, value: Date = new Date()): number {
+    if (!call.startedAt) return 0;
+    return Math.max(0, value.getTime() - call.startedAt.getTime());
+  }
+
+  private seedCommittedTranscriptTextFromActiveState(callId: string): void {
+    const state = this.activeStates.get(callId);
+    if (!state) return;
+
+    for (const event of state.segments.values()) {
+      const text = this.normalizeTranscriptText(event.text);
+      if (!text) continue;
+      this.recordCommittedTranscriptText(this.getTranscriptBufferKeyFromEvent(event), text);
+    }
+  }
+
   private extractUncommittedTranscriptText(bufferKey: string, incomingText: string): string {
     const committed = this.committedTranscriptTextByBufferKey.get(bufferKey);
     const incoming = this.normalizeTranscriptText(incomingText);
@@ -689,6 +741,7 @@ export class SubtitleService {
       segment_id: segmentId,
       speaker_name: dto.speaker_name,
       speaker_id: dto.speaker_id || null,
+      source_participant_identity: dto.source_participant_identity || null,
       text: dto.text,
       is_final: dto.is_final,
       start_ms: dto.start_ms,
@@ -713,7 +766,7 @@ export class SubtitleService {
   private async ensurePreference(userId: string): Promise<SubtitlePreference> {
     let preference = await this.preferenceRepo.findOne({ where: { userId } });
     if (!preference) {
-      preference = await this.preferenceRepo.save(this.preferenceRepo.create({ userId, enabled: true }));
+      preference = await this.preferenceRepo.save(this.preferenceRepo.create({ userId, enabled: false }));
     }
     return preference;
   }

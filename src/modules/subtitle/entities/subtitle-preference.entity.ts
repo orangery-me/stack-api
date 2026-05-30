@@ -20,7 +20,7 @@ export class SubtitlePreference {
   @JoinColumn({ name: 'userId' })
   user: UserEntity;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   enabled: boolean;
 
   @UpdateDateColumn()

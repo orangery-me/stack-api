@@ -62,6 +62,7 @@ export interface SubtitleTranscriptEvent {
   segment_id: string;
   speaker_name: string;
   speaker_id: string | null;
+  source_participant_identity: string | null;
   text: string;
   is_final: boolean;
   start_ms: number;
