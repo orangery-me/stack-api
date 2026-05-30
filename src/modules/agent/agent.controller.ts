@@ -227,7 +227,15 @@ export class AgentController {
   async canvasSessionMessageStream(
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
-    @Body() body: { canvasId: string; canvasContent?: string; message: string; provider?: string; model?: string },
+    @Body()
+    body: {
+      canvasId: string;
+      canvasContent?: string;
+      message: string;
+      provider?: string;
+      model?: string;
+      mode?: string;
+    },
     @Res() res: Response
   ): Promise<void> {
     const userId = String((req.user as any).userId);
@@ -241,6 +249,7 @@ export class AgentController {
       message: body.message,
       provider: body.provider,
       model: body.model,
+      mode: body.mode,
     });
 
     const subscription = stream$.subscribe({
@@ -286,6 +295,10 @@ export class AgentController {
       taskListId?: string;
       canvasId?: string;
       canvasContent?: string;
+      canvasTitle?: string;
+      sourceCanvasUrl?: string;
+      overallDueDate?: string;
+      timezone?: string;
       message: string;
       provider?: string;
       model?: string;
@@ -306,6 +319,10 @@ export class AgentController {
       message: body.message,
       provider: body.provider,
       model: body.model,
+      canvasTitle: body.canvasTitle,
+      sourceCanvasUrl: body.sourceCanvasUrl,
+      overallDueDate: body.overallDueDate,
+      timezone: body.timezone,
     });
 
     const subscription = stream$.subscribe({

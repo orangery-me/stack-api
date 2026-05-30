@@ -185,6 +185,119 @@ export class McpService {
     );
 
     server.tool(
+      'create_task_list_with_tasks',
+      'Create a new task list and multiple tasks from an AI-reviewed canvas action.',
+      {
+        workspace_id: z.string().uuid().describe('Workspace ID'),
+        channel_id: z.string().uuid().describe('Channel ID for the new task list'),
+        acting_user_id: z.string().uuid().describe('User ID performing this action'),
+        list_name: z.string().min(1).max(255).describe('Task list name'),
+        source_canvas_id: z.string().uuid().optional().describe('Source canvas ID to attach to every task'),
+        source_canvas_title: z.string().max(500).optional().describe('Source canvas title'),
+        source_canvas_url: z.string().max(2000).optional().describe('Source canvas URL'),
+        overall_due_date: z.string().optional().describe('Overall deadline in ISO format'),
+        default_assignee: z.literal('creator').optional().describe('Default assignee strategy'),
+        tasks: z
+          .array(
+            z.object({
+              title: z.string().min(1).max(500),
+              description: z.string().optional(),
+              status: z.nativeEnum(TaskStatus).optional(),
+              priority: z.nativeEnum(TaskPriority).optional(),
+              due_date: z.string().optional(),
+              assignee_ids: z.array(z.string().uuid()).optional(),
+            }),
+          )
+          .min(1),
+      },
+      async ({
+        workspace_id,
+        channel_id,
+        acting_user_id,
+        list_name,
+        source_canvas_id,
+        source_canvas_title,
+        source_canvas_url,
+        overall_due_date,
+        tasks,
+      }) => {
+        const overallDueDate = this.parseOptionalDate(overall_due_date, 'overall_due_date');
+        const cleanTasks = tasks.map((task, index) => {
+          const title = task.title?.trim();
+          if (!title) {
+            throw new Error(`Task at index ${index} is missing a title`);
+          }
+          const dueDate = this.parseOptionalDate(task.due_date, `tasks[${index}].due_date`);
+          if (overallDueDate && dueDate && dueDate.getTime() > overallDueDate.getTime()) {
+            throw new Error(`Task "${title}" due date cannot be later than the overall due date`);
+          }
+          return {
+            ...task,
+            title,
+            dueDateIso: dueDate ? dueDate.toISOString() : undefined,
+          };
+        });
+
+        const taskListName = await this.buildUniqueTaskListName(
+          workspace_id,
+          channel_id,
+          acting_user_id,
+          list_name,
+        );
+        const createdListResponse = await this.tasksService.createTaskList(workspace_id, channel_id, acting_user_id, {
+          name: taskListName,
+        });
+        const taskList = createdListResponse.data as { id: string; name: string; createdById?: string };
+        const creatorWorkspaceMemberId = taskList.createdById;
+        if (!creatorWorkspaceMemberId) {
+          throw new Error('Could not resolve creator workspace member for default assignment');
+        }
+
+        const canvasAttachment =
+          source_canvas_id
+            ? {
+                type: 'canvas' as const,
+                name: (source_canvas_title || 'Source canvas').slice(0, 500),
+                canvasId: source_canvas_id,
+                ...(source_canvas_url ? { url: source_canvas_url.slice(0, 2000) } : {}),
+              }
+            : null;
+
+        const results: Array<{ index: number; ok: boolean; task?: unknown; error?: string }> = [];
+        for (let index = 0; index < cleanTasks.length; index++) {
+          const task = cleanTasks[index];
+          try {
+            const response = await this.tasksService.createTask(workspace_id, taskList.id, acting_user_id, {
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              priority: task.priority,
+              dueDate: task.dueDateIso,
+              assigneeIds: [creatorWorkspaceMemberId],
+              attachments: canvasAttachment ? [canvasAttachment] : [],
+            });
+            results.push({ index, ok: true, task: response.data });
+          } catch (error: any) {
+            results.push({
+              index,
+              ok: false,
+              error: error?.message ?? 'Task creation failed',
+            });
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ taskList, tasks: results }, null, 2),
+            },
+          ],
+        };
+      },
+    );
+
+    server.tool(
       'list_task_lists',
       'List task lists available to the acting user (optionally by channel).',
       {
@@ -223,5 +336,32 @@ export class McpService {
         };
       },
     );
+  }
+
+  private parseOptionalDate(value: string | undefined, label: string): Date | undefined {
+    if (!value?.trim()) return undefined;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error(`${label} must be a valid ISO date`);
+    }
+    return parsed;
+  }
+
+  private async buildUniqueTaskListName(
+    workspaceId: string,
+    channelId: string,
+    actingUserId: string,
+    desiredName: string,
+  ): Promise<string> {
+    const baseName = (desiredName.trim() || 'Action items').slice(0, 255);
+    const existingLists = await this.tasksService.listTaskListsForMcp(workspaceId, actingUserId, channelId);
+    const existingNames = new Set(existingLists.map((list) => list.name.toLowerCase()));
+    if (!existingNames.has(baseName.toLowerCase())) {
+      return baseName;
+    }
+
+    const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const suffix = ` - ${timestamp}`;
+    return `${baseName.slice(0, 255 - suffix.length)}${suffix}`;
   }
 }

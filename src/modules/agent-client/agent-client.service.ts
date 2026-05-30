@@ -73,6 +73,7 @@ export interface CanvasSessionMessageRequest {
   message: string;
   provider?: string;
   model?: string;
+  mode?: string;
 }
 
 export interface CanvasApplyActionRequest {
@@ -98,6 +99,10 @@ export interface TaskSessionMessageRequest {
   message: string;
   provider?: string;
   model?: string;
+  canvasTitle?: string;
+  sourceCanvasUrl?: string;
+  overallDueDate?: string;
+  timezone?: string;
 }
 
 export interface TaskApplyActionRequest {
@@ -156,6 +161,7 @@ interface AgentServiceClient {
     message: string;
     provider?: string;
     model?: string;
+    mode?: string;
   }): Observable<AskAgentStreamChunk>;
   canvasApplyAction(data: {
     canvasId: string;
@@ -173,6 +179,10 @@ interface AgentServiceClient {
     message: string;
     provider?: string;
     model?: string;
+    canvasTitle?: string;
+    sourceCanvasUrl?: string;
+    overallDueDate?: string;
+    timezone?: string;
   }): Observable<AskAgentStreamChunk>;
   taskApplyAction(data: {
     userId: string;
@@ -261,6 +271,7 @@ export class AgentClientService implements OnModuleInit {
       message: data.message,
       provider: data.provider,
       model: data.model,
+      mode: data.mode,
     });
   }
 
@@ -280,6 +291,10 @@ export class AgentClientService implements OnModuleInit {
       message: data.message,
       provider: data.provider,
       model: data.model,
+      canvasTitle: data.canvasTitle,
+      sourceCanvasUrl: data.sourceCanvasUrl,
+      overallDueDate: data.overallDueDate,
+      timezone: data.timezone,
     });
   }
 
