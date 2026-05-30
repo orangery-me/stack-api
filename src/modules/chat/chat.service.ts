@@ -20,6 +20,7 @@ export interface SendMessageResult {
   messageType: string;
   createdAt: string;
   channelId: string;
+  metadata?: Record<string, any>;
 }
 
 export interface GetMessagesResult {
@@ -110,6 +111,7 @@ export class ChatService {
       channelId,
       content: dto.content,
       messageType: dto.messageType || 'text',
+      metadata: dto.metadata,
     });
 
     const isSystemMessage = (dto.messageType || 'text') === 'system';
@@ -141,6 +143,7 @@ export class ChatService {
       messageType: result.messageType || dto.messageType || 'text',
       createdAt: result.createdAt,
       channelId: result.channelId,
+      metadata: result.metadata as Record<string, any> | undefined,
     };
   }
 
@@ -179,6 +182,7 @@ export class ChatService {
           senderEmail: profile.email,
           senderAvatar: profile.avatar || null,
           messageType: message.messageType || 'text',
+          metadata: message.metadata,
         });
       }
     }

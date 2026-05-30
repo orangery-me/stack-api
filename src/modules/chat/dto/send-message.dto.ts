@@ -19,4 +19,11 @@ export class SendMessageDto {
   @IsOptional()
   @IsString()
   messageType?: string;
+
+  @ApiProperty({
+    description: 'Structured metadata for system messages',
+    required: false,
+  })
+  @IsOptional()
+  metadata?: Record<string, any>;
 }

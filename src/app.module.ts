@@ -21,6 +21,7 @@ import { McpModule } from './modules/mcp/mcp.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { HuddleModule } from './modules/huddle/huddle.module';
+import { SubtitleModule } from './modules/subtitle/subtitle.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -95,6 +96,7 @@ import * as Joi from 'joi';
         // Canvas Collab Server
         CANVAS_COLLAB_URL: Joi.string().default('http://localhost:1235'),
         CANVAS_COLLAB_SECRET: Joi.string().optional().default(''),
+        INTERNAL_SECRET: Joi.string().allow('').optional().default(''),
 
         // GCS uploads (optional; sensible defaults applied in StorageService when unset)
         GCP_STORAGE_BUCKET: Joi.string().allow('').optional(),
@@ -112,6 +114,10 @@ import * as Joi from 'joi';
         LIVEKIT_API_KEY: Joi.string().optional().default('devkey'),
         LIVEKIT_API_SECRET: Joi.string().optional().default('secret'),
         LIVEKIT_URL: Joi.string().optional().default('ws://localhost:7880'),
+
+        // Realtime subtitles
+        WHISPER_SERVICE_URL: Joi.string().allow('').optional().default(''),
+        STACK_API_INTERNAL_URL: Joi.string().allow('').optional().default(''),
 
         // Optional
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
@@ -132,6 +138,7 @@ import * as Joi from 'joi';
     McpModule,
     NotificationsModule,
     HuddleModule,
+    SubtitleModule,
   ],
   providers: [
     {

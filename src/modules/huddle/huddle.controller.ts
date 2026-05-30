@@ -29,8 +29,11 @@ export class HuddleController {
 
   @Get()
   @ApiOperation({ summary: 'Get huddle status for a channel' })
-  getStatus(@Param('channelId') channelId: string): Promise<HuddleStatusResponse> {
-    return this.huddleService.getStatus(channelId);
+  getStatus(
+    @Param('channelId') channelId: string,
+    @Req() req: any,
+  ): Promise<HuddleStatusResponse> {
+    return this.huddleService.getStatus(channelId, req.user?.userId);
   }
 
   @Post()

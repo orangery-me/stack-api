@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { HuddleCall } from './entities/huddle-call.entity';
@@ -12,6 +12,7 @@ import { WorkspaceMemberEntity } from '@app/entities/workspace/workspace-member.
 import { AuthModule } from '../auth/auth.module';
 import { ChatClientModule } from '../chat-client/chat-client.module';
 import { WsModule } from '../ws/ws.module';
+import { SubtitleModule } from '../subtitle/subtitle.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { WsModule } from '../ws/ws.module';
     AuthModule,
     ChatClientModule,
     WsModule,
+    forwardRef(() => SubtitleModule),
   ],
   providers: [LiveKitService, HuddleService, HuddleGateway],
   controllers: [HuddleController],

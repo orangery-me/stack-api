@@ -16,6 +16,7 @@ message SendMessageRequest {
   string channel_id = 6;
   string content = 7;
   string message_type = 8;
+  string metadata = 9;
 }
 
 message SendMessageResponse {
@@ -28,6 +29,7 @@ message SendMessageResponse {
   string message_type = 7;
   string created_at = 8;
   string channel_id = 9;
+  string metadata = 10;
 }
 
 message GetMessagesRequest {
@@ -51,4 +53,5 @@ message MessageItem {
   string message_type = 7;
   string created_at = 8;
   string channel_id = 9;
+  string metadata = 10;
 }

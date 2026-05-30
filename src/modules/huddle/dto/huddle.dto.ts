@@ -57,4 +57,5 @@ export class HuddleJoinResponse {
 export class HuddleStatusResponse {
   active: boolean;
   call: HuddleCallResponse | null;
+  isCurrentUserParticipant?: boolean;
 }
