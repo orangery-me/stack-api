@@ -6,6 +6,7 @@ import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { UsersModule } from '@UsersModule/users.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ChatRealtimeService } from './chat-realtime.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [ChatController],
-  providers: [ChatService],
-  exports: [ChatService],
+  providers: [ChatService, ChatRealtimeService],
+  exports: [ChatService, ChatRealtimeService],
 })
 export class ChatModule {}

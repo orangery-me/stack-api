@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn } from 'class-validator';
+import { IsIn, IsOptional } from 'class-validator';
 
 export class UpdateCanvasVisibilityDto {
   @ApiProperty({
@@ -8,4 +8,14 @@ export class UpdateCanvasVisibilityDto {
   })
   @IsIn(['private', 'shared', 'public-workspace'])
   visibility: 'private' | 'shared' | 'public-workspace';
+
+  @ApiProperty({
+    description: 'Workspace-wide access role when visibility is public-workspace',
+    enum: ['viewer', 'editor'],
+    required: false,
+    default: 'viewer',
+  })
+  @IsOptional()
+  @IsIn(['viewer', 'editor'])
+  role?: 'viewer' | 'editor';
 }

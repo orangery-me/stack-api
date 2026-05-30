@@ -12,6 +12,10 @@ import { CanvasPermissionListDto, CanvasPermissionItemDto } from './dto/canvas-p
 import { ShareCanvasWithUserDto } from './dto/share-canvas-user.dto';
 import { ShareCanvasWithChannelDto } from './dto/share-canvas-channel.dto';
 import { UpdateCanvasVisibilityDto } from './dto/update-canvas-visibility.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ChatClientService } from '../chat-client/chat-client.service';
+import { ChatRealtimeService } from '../chat/chat-realtime.service';
+import { CanvasAccessDto } from './dto/canvas-access.dto';
 
 type CanvasAccessRole = 'viewer' | 'editor';
 
@@ -31,7 +35,10 @@ export class CanvasService {
     @InjectRepository(CanvasPermissionEntity)
     private readonly canvasPermissionRepository: Repository<CanvasPermissionEntity>,
     @InjectRepository(CanvasRecentEntity)
-    private readonly canvasRecentRepository: Repository<CanvasRecentEntity>
+    private readonly canvasRecentRepository: Repository<CanvasRecentEntity>,
+    private readonly notificationsService: NotificationsService,
+    private readonly chatClientService: ChatClientService,
+    private readonly chatRealtimeService: ChatRealtimeService
   ) {}
 
   private async verifyChannelMembership(
@@ -98,6 +105,16 @@ export class CanvasService {
     return 'viewer';
   }
 
+  private async getWorkspacePermission(canvas: CanvasEntity): Promise<CanvasPermissionEntity | null> {
+    return this.canvasPermissionRepository.findOne({
+      where: {
+        canvasId: canvas.id,
+        type: 'workspace',
+        targetId: canvas.workspaceId,
+      },
+    });
+  }
+
   private async getEffectiveCanvasRole(
     canvas: CanvasEntity,
     workspaceMember: WorkspaceMemberEntity
@@ -109,9 +126,10 @@ export class CanvasService {
       effective = 'editor';
     }
 
-    // Public workspace => mọi member workspace có ít nhất viewer
+    // Public workspace => mọi active workspace member có quyền theo general access.
     if (canvas.visibility === 'public-workspace') {
-      effective = this.upgradeRole(effective, 'viewer');
+      const workspacePermission = await this.getWorkspacePermission(canvas);
+      effective = this.upgradeRole(effective, workspacePermission?.role ?? 'viewer');
     }
 
     // Permission trực tiếp theo user
@@ -184,6 +202,16 @@ export class CanvasService {
       };
     }
 
+    if (permission.type === 'workspace') {
+      return {
+        id: permission.id,
+        type: permission.type,
+        targetId: permission.targetId,
+        role: permission.role,
+        label: 'Anyone in this workspace with the link',
+      };
+    }
+
     return {
       id: permission.id,
       type: permission.type,
@@ -219,6 +247,16 @@ export class CanvasService {
     requiredRole: CanvasAccessRole
   ): Promise<{ canvas: CanvasEntity; workspaceMember: WorkspaceMemberEntity; role: CanvasAccessRole }> {
     return this.ensureCanvasPermission(canvasId, userId, requiredRole);
+  }
+
+  async getCanvasAccess(canvasId: string, userId: string): Promise<CanvasAccessDto> {
+    const { role } = await this.ensureCanvasPermission(canvasId, userId, 'viewer');
+
+    return {
+      role,
+      canEdit: role === 'editor',
+      readOnly: role !== 'editor',
+    };
   }
 
   private async touchRecent(userId: string, canvasId: string): Promise<void> {
@@ -355,16 +393,119 @@ export class CanvasService {
     const permissions = await this.canvasPermissionRepository.find({
       where: { canvasId: canvas.id },
     });
+    const workspacePermission = permissions.find(
+      (permission) => permission.type === 'workspace' && permission.targetId === canvas.workspaceId
+    );
 
     const items: CanvasPermissionItemDto[] = [];
     for (const perm of permissions) {
+      if (perm.type === 'workspace') {
+        continue;
+      }
       items.push(await this.mapPermissionToDto(perm));
     }
 
     return {
       visibility: canvas.visibility,
+      generalAccess: {
+        enabled: canvas.visibility === 'public-workspace',
+        role: workspacePermission?.role ?? 'viewer',
+      },
       items,
     };
+  }
+
+  private getWorkspaceCanvasUrl(canvasId: string): string {
+    return `/canvas/${canvasId}/edit`;
+  }
+
+  private getActorName(workspaceMember: WorkspaceMemberEntity, user?: UserEntity | null): string {
+    return workspaceMember.displayName || user?.name || user?.email || 'Someone';
+  }
+
+  private async notifyCanvasSharedWithUser(params: {
+    canvas: CanvasEntity;
+    actorWorkspaceMember: WorkspaceMemberEntity;
+    targetUser: UserEntity;
+    role: CanvasAccessRole;
+  }): Promise<void> {
+    const actorUser = await this.userRepository.findOne({
+      where: { id: params.actorWorkspaceMember.userId },
+    });
+
+    await this.notificationsService.publishEvent({
+      type: 'canvas.shared',
+      workspaceId: params.canvas.workspaceId,
+      actorUserId: params.actorWorkspaceMember.userId,
+      entityType: 'canvas',
+      entityId: params.canvas.id,
+      payload: {
+        recipientUserIds: [params.targetUser.id],
+        actorName: this.getActorName(params.actorWorkspaceMember, actorUser),
+        canvasId: params.canvas.id,
+        canvasTitle: params.canvas.title,
+        role: params.role,
+        targetUrl: this.getWorkspaceCanvasUrl(params.canvas.id),
+      },
+    });
+  }
+
+  private async sendCanvasSharedSystemMessage(params: {
+    canvas: CanvasEntity;
+    actorWorkspaceMember: WorkspaceMemberEntity;
+    channelId: string;
+    role: CanvasAccessRole;
+  }): Promise<void> {
+    const actorUser = await this.userRepository.findOne({
+      where: { id: params.actorWorkspaceMember.userId },
+    });
+    const actorName = this.getActorName(params.actorWorkspaceMember, actorUser);
+    const targetUrl = this.getWorkspaceCanvasUrl(params.canvas.id);
+
+    const message = await this.chatClientService.sendMessage({
+      userId: params.actorWorkspaceMember.userId,
+      userName: actorName,
+      userEmail: actorUser?.email || '',
+      userAvatar: actorUser?.avatar || '',
+      workspaceId: params.canvas.workspaceId,
+      channelId: params.channelId,
+      content: `${actorName} has shared "${params.canvas.title}" canvas with this channel`,
+      messageType: 'system',
+      metadata: {
+        canvasShare: {
+          canvasId: params.canvas.id,
+          title: params.canvas.title,
+          role: params.role,
+          targetUrl,
+        },
+      },
+    });
+
+    this.chatRealtimeService.emitNewMessage(params.channelId, message);
+  }
+
+  private async setCanvasSharedVisibility(canvas: CanvasEntity, workspaceMember: WorkspaceMemberEntity): Promise<void> {
+    if (canvas.visibility === 'private') {
+      canvas.visibility = 'shared';
+    }
+    canvas.updatedById = workspaceMember.id;
+    await this.canvasRepository.save(canvas);
+  }
+
+  private async refreshCanvasVisibilityAfterPermissionRemoval(canvas: CanvasEntity): Promise<void> {
+    if (canvas.visibility === 'public-workspace') {
+      return;
+    }
+
+    const remaining = await this.canvasPermissionRepository.count({
+      where: {
+        canvasId: canvas.id,
+        type: In(['user', 'channel']),
+      },
+    });
+
+    canvas.visibility = remaining > 0 ? 'shared' : 'private';
+    await this.canvasRepository.save(canvas);
   }
 
   async shareCanvasWithUser(
@@ -402,6 +543,7 @@ export class CanvasService {
       },
     });
 
+    const previousRole = permission?.role;
     if (!permission) {
       permission = this.canvasPermissionRepository.create({
         canvasId: canvas.id,
@@ -415,8 +557,16 @@ export class CanvasService {
 
     await this.canvasPermissionRepository.save(permission);
 
-    canvas.updatedById = workspaceMember.id;
-    await this.canvasRepository.save(canvas);
+    await this.setCanvasSharedVisibility(canvas, workspaceMember);
+
+    if (previousRole !== dto.role) {
+      await this.notifyCanvasSharedWithUser({
+        canvas,
+        actorWorkspaceMember: workspaceMember,
+        targetUser,
+        role: dto.role,
+      });
+    }
 
     return this.getCanvasPermissions(canvas.id, userId);
   }
@@ -444,6 +594,7 @@ export class CanvasService {
       },
     });
 
+    const previousRole = permission?.role;
     if (!permission) {
       permission = this.canvasPermissionRepository.create({
         canvasId: canvas.id,
@@ -457,8 +608,16 @@ export class CanvasService {
 
     await this.canvasPermissionRepository.save(permission);
 
-    canvas.updatedById = workspaceMember.id;
-    await this.canvasRepository.save(canvas);
+    await this.setCanvasSharedVisibility(canvas, workspaceMember);
+
+    if (previousRole !== dto.role) {
+      await this.sendCanvasSharedSystemMessage({
+        canvas,
+        actorWorkspaceMember: workspaceMember,
+        channelId: channel.id,
+        role: dto.role,
+      });
+    }
 
     return this.getCanvasPermissions(canvas.id, userId);
   }
@@ -474,6 +633,31 @@ export class CanvasService {
     canvas.updatedById = workspaceMember.id;
 
     await this.canvasRepository.save(canvas);
+
+    const workspacePermission = await this.getWorkspacePermission(canvas);
+
+    if (dto.visibility === 'public-workspace') {
+      const role = dto.role ?? workspacePermission?.role ?? 'viewer';
+      if (!workspacePermission) {
+        await this.canvasPermissionRepository.save(
+          this.canvasPermissionRepository.create({
+            canvasId: canvas.id,
+            type: 'workspace',
+            targetId: canvas.workspaceId,
+            role,
+          })
+        );
+      } else if (workspacePermission.role !== role) {
+        workspacePermission.role = role;
+        await this.canvasPermissionRepository.save(workspacePermission);
+      }
+    } else if (workspacePermission) {
+      await this.canvasPermissionRepository.remove(workspacePermission);
+    }
+
+    if (dto.visibility !== 'public-workspace') {
+      await this.refreshCanvasVisibilityAfterPermissionRemoval(canvas);
+    }
 
     return this.getCanvasPermissions(canvas.id, userId);
   }
@@ -494,6 +678,12 @@ export class CanvasService {
     }
 
     await this.canvasPermissionRepository.remove(permission);
+    if (permission.type === 'workspace') {
+      canvas.visibility = 'private';
+      await this.canvasRepository.save(canvas);
+    } else {
+      await this.refreshCanvasVisibilityAfterPermissionRemoval(canvas);
+    }
 
     return this.getCanvasPermissions(canvas.id, userId);
   }

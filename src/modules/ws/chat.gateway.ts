@@ -13,6 +13,7 @@ import { JwtTokenService } from '../auth/services/jwt.service';
 import { ChatService } from '../chat/chat.service';
 import { UsersService } from '../users/users.service';
 import { ProfileDto } from '@UsersModule/dto/profile.dto';
+import { ChatRealtimeService } from '../chat/chat-realtime.service';
 
 interface SendMessagePayload {
   workspaceId: string;
@@ -42,10 +43,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   constructor(
     private readonly jwtTokenService: JwtTokenService,
     private readonly chatService: ChatService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly chatRealtimeService: ChatRealtimeService
   ) {}
 
   afterInit() {
+    this.chatRealtimeService.setServer(this.server);
     console.log('[ChatGateway] WebSocket gateway initialized');
   }
 

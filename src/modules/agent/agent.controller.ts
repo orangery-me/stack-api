@@ -239,6 +239,7 @@ export class AgentController {
     @Res() res: Response
   ): Promise<void> {
     const userId = String((req.user as any).userId);
+    await this.canvasService.authorizeCanvasAccess(body.canvasId, userId, 'viewer');
     this.setSSEHeaders(res);
 
     const stream$ = this.agentService.canvasSessionMessageStream({
@@ -273,8 +274,12 @@ export class AgentController {
   @Post('canvas/actions/apply')
   @ApiOperation({ summary: 'Apply one approved canvas action from pending preview list' })
   async applyCanvasAction(
+    @Req() req: Request,
     @Body() body: { canvasId: string; actionName: string; actionArgsJson: string }
   ): Promise<ResponseItem<{ ok: boolean; resultJson?: string; error?: string }>> {
+    const userId = String((req.user as any).userId);
+    await this.canvasService.authorizeCanvasAccess(body.canvasId, userId, 'editor');
+
     const result = await this.agentService.canvasApplyAction({
       canvasId: body.canvasId,
       actionName: body.actionName,

@@ -10,6 +10,7 @@ import { CanvasPermissionListDto } from './dto/canvas-permission.dto';
 import { ShareCanvasWithUserDto } from './dto/share-canvas-user.dto';
 import { ShareCanvasWithChannelDto } from './dto/share-canvas-channel.dto';
 import { UpdateCanvasVisibilityDto } from './dto/update-canvas-visibility.dto';
+import { CanvasAccessDto } from './dto/canvas-access.dto';
 
 @ApiTags('canvas')
 @Controller('/canvases')
@@ -29,6 +30,24 @@ export class CanvasController {
   async getCanvas(@Req() request, @Param('canvasId') canvasId: string): Promise<ResponseItem<CanvasDto>> {
     const result = await this.canvasService.getCanvas(canvasId, request.user.userId);
     return new ResponseItem<CanvasDto>(result, 'Canvas fetched successfully');
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Get(':canvasId/access')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Kiểm tra quyền truy cập canvas cho collab server' })
+  @ApiParam({ name: 'canvasId', description: 'Canvas ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Canvas access fetched successfully',
+    type: CanvasAccessDto,
+  })
+  async getCanvasAccess(
+    @Req() request,
+    @Param('canvasId') canvasId: string
+  ): Promise<ResponseItem<CanvasAccessDto>> {
+    const result = await this.canvasService.getCanvasAccess(canvasId, request.user.userId);
+    return new ResponseItem<CanvasAccessDto>(result, 'Canvas access fetched successfully');
   }
 
   @UseGuards(JwtAccessTokenGuard)
