@@ -133,6 +133,31 @@ export class AgentController {
     return new ResponseItem(result, 'Message sent');
   }
 
+  @Patch('sessions/:sessionId/messages/:messageId/actions/:actionId')
+  @ApiOperation({ summary: 'Update persisted status for a proposed AI action' })
+  @ApiParam({ name: 'sessionId' })
+  @ApiParam({ name: 'messageId' })
+  @ApiParam({ name: 'actionId' })
+  @ApiBody({ schema: { properties: { status: { type: 'string' }, error: { type: 'string' } } } })
+  async updateMessageActionStatus(
+    @Req() req: Request,
+    @Param('sessionId') sessionId: string,
+    @Param('messageId') messageId: string,
+    @Param('actionId') actionId: string,
+    @Body() body: { status: string; error?: string }
+  ) {
+    const userId = String((req.user as any).userId);
+    const result = await this.agentService.updateMessageActionStatus({
+      userId,
+      sessionId,
+      messageId,
+      actionId,
+      status: body.status,
+      error: body.error,
+    });
+    return new ResponseItem(result, 'Action status updated');
+  }
+
   @Post('sessions/:sessionId/messages/stream')
   @ApiOperation({ summary: 'Send a message in a session (SSE streaming)' })
   @ApiParam({ name: 'sessionId' })

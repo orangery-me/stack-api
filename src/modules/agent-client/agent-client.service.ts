@@ -44,6 +44,15 @@ export interface MessageListDto {
   hasMore: boolean;
 }
 
+export interface UpdateMessageActionStatusRequest {
+  userId: string;
+  sessionId: string;
+  messageId?: string;
+  actionId: string;
+  status: string;
+  error?: string;
+}
+
 export interface SendMessageRequest {
   userId: string;
   sessionId: string;
@@ -140,6 +149,7 @@ interface AgentServiceClient {
     page?: number;
     size?: number;
   }): Observable<MessageListDto>;
+  updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Observable<ChatMessageDto>;
 
   // Send
   sendMessage(data: SendMessageRequest): Observable<SendMessageResponse>;
@@ -242,6 +252,10 @@ export class AgentClientService implements OnModuleInit {
 
   async getSessionMessages(userId: string, sessionId: string, page = 1, size = 50): Promise<MessageListDto> {
     return lastValueFrom(this.agentService.getSessionMessages({ userId, sessionId, page, size }));
+  }
+
+  async updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Promise<ChatMessageDto> {
+    return lastValueFrom(this.agentService.updateMessageActionStatus(data));
   }
 
   async sendMessage(data: SendMessageRequest): Promise<SendMessageResponse> {

@@ -14,6 +14,8 @@ import {
   TaskApplyActionResponse,
   SendMessageRequest,
   SendMessageResponse,
+  UpdateMessageActionStatusRequest,
+  ChatMessageDto,
   SessionDto,
   MessageListDto,
 } from '../agent-client/agent-client.service';
@@ -52,6 +54,10 @@ export class AgentService {
 
   async getSessionMessages(userId: string, sessionId: string, page: number, size: number): Promise<MessageListDto> {
     return this.agentClientService.getSessionMessages(userId, sessionId, page, size);
+  }
+
+  async updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Promise<ChatMessageDto> {
+    return this.agentClientService.updateMessageActionStatus(data);
   }
 
   async sendMessage(data: SendMessageRequest): Promise<SendMessageResponse> {
