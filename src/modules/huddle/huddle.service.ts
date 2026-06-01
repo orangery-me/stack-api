@@ -4,6 +4,8 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -22,6 +24,8 @@ import { WorkspaceMemberEntity } from '@app/entities/workspace/workspace-member.
 import { WorkspaceMemberStatusEnum } from '@Constant/enums';
 import { ChatClientService } from '../chat-client/chat-client.service';
 import { ChatGateway } from '../ws/chat.gateway';
+import { SubtitleClientService } from '../subtitle/subtitle-client.service';
+import { SubtitleService } from '../subtitle/subtitle.service';
 
 @Injectable()
 export class HuddleService {
@@ -39,6 +43,10 @@ export class HuddleService {
     private readonly liveKitService: LiveKitService,
     private readonly chatClientService: ChatClientService,
     private readonly chatGateway: ChatGateway,
+    @Inject(forwardRef(() => SubtitleClientService))
+    private readonly subtitleClientService: SubtitleClientService,
+    @Inject(forwardRef(() => SubtitleService))
+    private readonly subtitleService: SubtitleService,
   ) {}
 
   async createHuddle(channelId: string, userId: string, userName: string): Promise<HuddleJoinResponse> {
@@ -82,34 +90,24 @@ export class HuddleService {
 
     const token = await this.liveKitService.generateToken(roomName, userId, userName);
     const livekitUrl = this.liveKitService.getWebSocketUrl();
+    await this.startSubtitleSession(call, livekitUrl);
 
-    // Broadcast system message
-    const user = await this.workspaceMemberRepo.manager.query(
-      `SELECT email, avatar FROM users WHERE id = $1`,
-      [userId]
-    );
-    const userEmail = user?.[0]?.email || '';
-    const userAvatar = user?.[0]?.avatar || '';
-
-    try {
-      const message = await this.chatClientService.sendMessage({
-        userId,
-        userName,
-        userEmail,
-        userAvatar,
-        workspaceId: channel.workspaceId,
-        channelId,
-        content: 'Huddle started',
-        messageType: 'system',
-      });
-      // Broadcast via WebSocket
-      const room = `channel:${channelId}`;
-      if (this.chatGateway.server) {
-        this.chatGateway.server.to(room).emit('new_message', message);
-      }
-    } catch (err) {
-      this.logger.error(`Failed to send huddle system message: ${err.message}`);
-    }
+    await this.sendHuddleSystemMessage({
+      userId,
+      userName,
+      workspaceId: channel.workspaceId,
+      channelId,
+      content: 'Huddle started',
+      metadata: {
+        huddle: {
+          event: 'started',
+          callId: call.id,
+          channelId,
+          startedAt: call.startedAt.toISOString(),
+          participantCount: 1,
+        },
+      },
+    });
 
     this.logger.log(`Huddle created: call=${call.id} channel=${channelId} user=${userId}`);
 
@@ -122,7 +120,7 @@ export class HuddleService {
     };
   }
 
-  async getStatus(channelId: string): Promise<HuddleStatusResponse> {
+  async getStatus(channelId: string, userId?: string): Promise<HuddleStatusResponse> {
     const channel = await this.channelRepo.findOne({ where: { id: channelId } });
     if (!channel) {
       throw new NotFoundException('Channel not found');
@@ -133,16 +131,25 @@ export class HuddleService {
       relations: ['createdBy'],
     });
     if (!call) {
-      return { active: false, call: null };
+      return { active: false, call: null, isCurrentUserParticipant: false };
     }
 
     const participantCount = await this.participantRepo.count({
       where: { callId: call.id, status: HuddleParticipantStatus.ACTIVE },
     });
 
+    const isCurrentUserParticipant = userId
+      ? Boolean(
+          await this.participantRepo.findOne({
+            where: { callId: call.id, userId, status: HuddleParticipantStatus.ACTIVE },
+          }),
+        )
+      : false;
+
     return {
       active: true,
       call: this.toCallResponse(call, participantCount),
+      isCurrentUserParticipant,
     };
   }
 
@@ -170,6 +177,7 @@ export class HuddleService {
       where: { callId: call.id, userId, status: HuddleParticipantStatus.ACTIVE },
     });
     if (existingParticipant) {
+      await this.startSubtitleSession(call, this.liveKitService.getWebSocketUrl());
       return {
         callId: call.id,
         livekitRoomName: call.livekitRoomName,
@@ -200,6 +208,7 @@ export class HuddleService {
 
     const token = await this.liveKitService.generateToken(call.livekitRoomName, userId, userName);
     const participantCount = activeCount + 1;
+    await this.startSubtitleSession(call, this.liveKitService.getWebSocketUrl());
 
     this.logger.log(`User ${userId} joined huddle ${call.id}`);
 
@@ -242,31 +251,30 @@ export class HuddleService {
       await this.huddleCallRepo.save(call);
       callEnded = true;
       this.logger.log(`Huddle ${call.id} ended (last participant left)`);
+      await this.stopSubtitleSession(call.id);
+      const completedTranscript = await this.subtitleService.completeTranscriptForCall(call.id);
 
-      // Broadcast system message for Huddle ended
-      const user = await this.workspaceMemberRepo.manager.query(
-        `SELECT email, avatar FROM users WHERE id = $1`,
-        [userId]
-      );
       const channel = await this.channelRepo.findOne({ where: { id: channelId } });
-      try {
-        const message = await this.chatClientService.sendMessage({
+      if (channel) {
+        await this.sendHuddleSystemMessage({
           userId,
-          userName: user?.[0]?.email || 'Unknown',
-          userEmail: user?.[0]?.email || '',
-          userAvatar: user?.[0]?.avatar || '',
-          workspaceId: channel?.workspaceId || '',
+          userName: 'System',
+          workspaceId: channel.workspaceId,
           channelId,
           content: 'Huddle ended',
-          messageType: 'system',
+          metadata: {
+            huddle: {
+              event: 'ended',
+              callId: call.id,
+              channelId,
+              startedAt: call.startedAt.toISOString(),
+              endedAt: call.endedAt.toISOString(),
+              transcriptEnabled: Boolean(completedTranscript),
+              transcriptId: completedTranscript?.id || null,
+              transcriptSegmentCount: completedTranscript?.segmentCount || 0,
+            },
+          },
         });
-        
-        const room = `channel:${channelId}`;
-        if (this.chatGateway.server) {
-          this.chatGateway.server.to(room).emit('new_message', message);
-        }
-      } catch (err) {
-        this.logger.error(`Failed to send huddle ended system message: ${err.message}`);
       }
     }
 
@@ -393,5 +401,72 @@ export class HuddleService {
         avatarUrl: (call.createdBy as any)?.avatar,
       },
     };
+  }
+
+  private async startSubtitleSession(call: HuddleCall, livekitUrl: string): Promise<void> {
+    try {
+      const botToken = await this.liveKitService.generateSubscribeOnlyToken(
+        call.livekitRoomName,
+        `subtitle-bot:${call.id}`,
+        'Subtitle Bot',
+      );
+      const started = await this.subtitleClientService.startSession({
+        callId: call.id,
+        channelId: call.channelId,
+        livekitRoomName: call.livekitRoomName,
+        livekitUrl,
+        livekitToken: botToken,
+        language: 'vi',
+      });
+      if (started) {
+        this.logger.log(`Subtitle session started for huddle ${call.id}`);
+      }
+    } catch (error: any) {
+      this.logger.warn(`Failed to start subtitle session for huddle ${call.id}: ${error?.message || error}`);
+    }
+  }
+
+  private async stopSubtitleSession(callId: string): Promise<void> {
+    try {
+      await this.subtitleClientService.stopSession(callId);
+      this.logger.log(`Subtitle session stopped for huddle ${callId}`);
+    } catch (error: any) {
+      this.logger.warn(`Failed to stop subtitle session for huddle ${callId}: ${error?.message || error}`);
+    }
+  }
+
+  private async sendHuddleSystemMessage(params: {
+    userId: string;
+    userName: string;
+    workspaceId: string;
+    channelId: string;
+    content: 'Huddle started' | 'Huddle ended';
+    metadata: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const user = await this.workspaceMemberRepo.manager.query(
+        `SELECT email, avatar FROM users WHERE id = $1`,
+        [params.userId],
+      );
+
+      const message = await this.chatClientService.sendMessage({
+        userId: params.userId,
+        userName: params.userName || user?.[0]?.email || 'System',
+        userEmail: user?.[0]?.email || '',
+        userAvatar: user?.[0]?.avatar || '',
+        workspaceId: params.workspaceId,
+        channelId: params.channelId,
+        content: params.content,
+        messageType: 'system',
+        metadata: params.metadata,
+      });
+
+      const room = `channel:${params.channelId}`;
+      if (this.chatGateway.server) {
+        this.chatGateway.server.to(room).emit('new_message', message);
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to send huddle system message: ${err.message}`);
+    }
   }
 }

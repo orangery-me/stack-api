@@ -6,9 +6,15 @@ import { CanvasRecentEntity } from '@app/entities/canvas/canvas-recent.entity';
 import { CanvasService } from './canvas.service';
 import { CanvasController } from './canvas.controller';
 import { WorkspaceCanvasController } from './workspace-canvas.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ChatClientModule } from '../chat-client/chat-client.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
+    NotificationsModule,
+    ChatClientModule,
+    ChatModule,
     TypeOrmModule.forFeature([
       CanvasEntity,
       ChannelEntity,

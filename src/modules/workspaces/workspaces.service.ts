@@ -453,7 +453,7 @@ export class WorkspacesService {
     return new ResponseItem<WorkspaceDto>(dto, 'Workspace fetched successfully');
   }
 
-  async getWorkspaceMembers(workspaceId: string): Promise<ResponseItem<WorkspaceMemberDto[]>> {
+  async getWorkspaceMembers(workspaceId: string, requesterUserId: string): Promise<ResponseItem<WorkspaceMemberDto[]>> {
     // Verify workspace exists
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
@@ -461,6 +461,18 @@ export class WorkspacesService {
 
     if (!workspace) {
       throw new NotFoundException('Workspace does not exist');
+    }
+
+    const requesterMembership = await this.workspaceMemberRepository.findOne({
+      where: {
+        workspaceId,
+        userId: requesterUserId,
+        status: WorkspaceMemberStatusEnum.ACTIVE,
+      },
+    });
+
+    if (!requesterMembership) {
+      throw new UnauthorizedException('You are not a member of this workspace');
     }
 
     // Get all members with relations

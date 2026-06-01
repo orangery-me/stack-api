@@ -133,6 +133,31 @@ export class AgentController {
     return new ResponseItem(result, 'Message sent');
   }
 
+  @Patch('sessions/:sessionId/messages/:messageId/actions/:actionId')
+  @ApiOperation({ summary: 'Update persisted status for a proposed AI action' })
+  @ApiParam({ name: 'sessionId' })
+  @ApiParam({ name: 'messageId' })
+  @ApiParam({ name: 'actionId' })
+  @ApiBody({ schema: { properties: { status: { type: 'string' }, error: { type: 'string' } } } })
+  async updateMessageActionStatus(
+    @Req() req: Request,
+    @Param('sessionId') sessionId: string,
+    @Param('messageId') messageId: string,
+    @Param('actionId') actionId: string,
+    @Body() body: { status: string; error?: string }
+  ) {
+    const userId = String((req.user as any).userId);
+    const result = await this.agentService.updateMessageActionStatus({
+      userId,
+      sessionId,
+      messageId,
+      actionId,
+      status: body.status,
+      error: body.error,
+    });
+    return new ResponseItem(result, 'Action status updated');
+  }
+
   @Post('sessions/:sessionId/messages/stream')
   @ApiOperation({ summary: 'Send a message in a session (SSE streaming)' })
   @ApiParam({ name: 'sessionId' })
@@ -227,10 +252,19 @@ export class AgentController {
   async canvasSessionMessageStream(
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
-    @Body() body: { canvasId: string; canvasContent?: string; message: string; provider?: string; model?: string },
+    @Body()
+    body: {
+      canvasId: string;
+      canvasContent?: string;
+      message: string;
+      provider?: string;
+      model?: string;
+      mode?: string;
+    },
     @Res() res: Response
   ): Promise<void> {
     const userId = String((req.user as any).userId);
+    await this.canvasService.authorizeCanvasAccess(body.canvasId, userId, 'viewer');
     this.setSSEHeaders(res);
 
     const stream$ = this.agentService.canvasSessionMessageStream({
@@ -241,6 +275,7 @@ export class AgentController {
       message: body.message,
       provider: body.provider,
       model: body.model,
+      mode: body.mode,
     });
 
     const subscription = stream$.subscribe({
@@ -264,8 +299,12 @@ export class AgentController {
   @Post('canvas/actions/apply')
   @ApiOperation({ summary: 'Apply one approved canvas action from pending preview list' })
   async applyCanvasAction(
+    @Req() req: Request,
     @Body() body: { canvasId: string; actionName: string; actionArgsJson: string }
   ): Promise<ResponseItem<{ ok: boolean; resultJson?: string; error?: string }>> {
+    const userId = String((req.user as any).userId);
+    await this.canvasService.authorizeCanvasAccess(body.canvasId, userId, 'editor');
+
     const result = await this.agentService.canvasApplyAction({
       canvasId: body.canvasId,
       actionName: body.actionName,
@@ -286,6 +325,10 @@ export class AgentController {
       taskListId?: string;
       canvasId?: string;
       canvasContent?: string;
+      canvasTitle?: string;
+      sourceCanvasUrl?: string;
+      overallDueDate?: string;
+      timezone?: string;
       message: string;
       provider?: string;
       model?: string;
@@ -306,6 +349,10 @@ export class AgentController {
       message: body.message,
       provider: body.provider,
       model: body.model,
+      canvasTitle: body.canvasTitle,
+      sourceCanvasUrl: body.sourceCanvasUrl,
+      overallDueDate: body.overallDueDate,
+      timezone: body.timezone,
     });
 
     const subscription = stream$.subscribe({

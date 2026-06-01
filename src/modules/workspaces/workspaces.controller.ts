@@ -127,7 +127,10 @@ export class WorkspacesController {
   })
   @ApiResponse({ status: 401, description: 'Not authenticated' })
   @ApiResponse({ status: 404, description: 'Workspace not found' })
-  async getWorkspaceMembers(@Param('id') workspaceId: string): Promise<ResponseItem<WorkspaceMemberDto[]>> {
-    return this.workspacesService.getWorkspaceMembers(workspaceId);
+  async getWorkspaceMembers(
+    @Req() request,
+    @Param('id') workspaceId: string
+  ): Promise<ResponseItem<WorkspaceMemberDto[]>> {
+    return this.workspacesService.getWorkspaceMembers(workspaceId, request.user.userId);
   }
 }

@@ -14,6 +14,7 @@ service AgentService {
 
   // Message history
   rpc GetSessionMessages (GetSessionMessagesRequest) returns (MessageList);
+  rpc UpdateMessageActionStatus (UpdateMessageActionStatusRequest) returns (ChatMessage);
 
   // Update session metadata
   rpc UpdateSession (UpdateSessionRequest) returns (Session);
@@ -100,6 +101,15 @@ message MessageList {
   bool has_more = 3;
 }
 
+message UpdateMessageActionStatusRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string message_id = 3;
+  string action_id = 4;
+  string status = 5;
+  string error = 6;
+}
+
 // ---- Send ----
 
 message SendMessageRequest {
@@ -133,6 +143,7 @@ message CanvasSessionMessageRequest {
   string message = 5;
   string provider = 6;
   string model = 7;
+  string mode = 8;
 }
 
 message CanvasApplyActionRequest {
@@ -158,6 +169,10 @@ message TaskSessionMessageRequest {
   string message = 8;
   string provider = 9;
   string model = 10;
+  string canvas_title = 11;
+  string source_canvas_url = 12;
+  string overall_due_date = 13;
+  string timezone = 14;
 }
 
 message TaskApplyActionRequest {

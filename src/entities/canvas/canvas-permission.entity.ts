@@ -15,7 +15,7 @@ export class CanvasPermissionEntity {
   canvas: CanvasEntity;
 
   @Column({ type: 'varchar', length: 16 })
-  type: 'user' | 'channel';
+  type: 'user' | 'channel' | 'workspace';
 
   @Column({ type: 'uuid' })
   targetId: string;

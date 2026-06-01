@@ -44,6 +44,15 @@ export interface MessageListDto {
   hasMore: boolean;
 }
 
+export interface UpdateMessageActionStatusRequest {
+  userId: string;
+  sessionId: string;
+  messageId?: string;
+  actionId: string;
+  status: string;
+  error?: string;
+}
+
 export interface SendMessageRequest {
   userId: string;
   sessionId: string;
@@ -73,6 +82,7 @@ export interface CanvasSessionMessageRequest {
   message: string;
   provider?: string;
   model?: string;
+  mode?: string;
 }
 
 export interface CanvasApplyActionRequest {
@@ -98,6 +108,10 @@ export interface TaskSessionMessageRequest {
   message: string;
   provider?: string;
   model?: string;
+  canvasTitle?: string;
+  sourceCanvasUrl?: string;
+  overallDueDate?: string;
+  timezone?: string;
 }
 
 export interface TaskApplyActionRequest {
@@ -135,6 +149,7 @@ interface AgentServiceClient {
     page?: number;
     size?: number;
   }): Observable<MessageListDto>;
+  updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Observable<ChatMessageDto>;
 
   // Send
   sendMessage(data: SendMessageRequest): Observable<SendMessageResponse>;
@@ -156,6 +171,7 @@ interface AgentServiceClient {
     message: string;
     provider?: string;
     model?: string;
+    mode?: string;
   }): Observable<AskAgentStreamChunk>;
   canvasApplyAction(data: {
     canvasId: string;
@@ -173,6 +189,10 @@ interface AgentServiceClient {
     message: string;
     provider?: string;
     model?: string;
+    canvasTitle?: string;
+    sourceCanvasUrl?: string;
+    overallDueDate?: string;
+    timezone?: string;
   }): Observable<AskAgentStreamChunk>;
   taskApplyAction(data: {
     userId: string;
@@ -234,6 +254,10 @@ export class AgentClientService implements OnModuleInit {
     return lastValueFrom(this.agentService.getSessionMessages({ userId, sessionId, page, size }));
   }
 
+  async updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Promise<ChatMessageDto> {
+    return lastValueFrom(this.agentService.updateMessageActionStatus(data));
+  }
+
   async sendMessage(data: SendMessageRequest): Promise<SendMessageResponse> {
     return lastValueFrom(this.agentService.sendMessage(data));
   }
@@ -261,6 +285,7 @@ export class AgentClientService implements OnModuleInit {
       message: data.message,
       provider: data.provider,
       model: data.model,
+      mode: data.mode,
     });
   }
 
@@ -280,6 +305,10 @@ export class AgentClientService implements OnModuleInit {
       message: data.message,
       provider: data.provider,
       model: data.model,
+      canvasTitle: data.canvasTitle,
+      sourceCanvasUrl: data.sourceCanvasUrl,
+      overallDueDate: data.overallDueDate,
+      timezone: data.timezone,
     });
   }
 

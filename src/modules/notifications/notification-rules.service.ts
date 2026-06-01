@@ -50,6 +50,16 @@ export class NotificationRulesService {
           icon: 'fc-approval',
           targetUrl: payload?.targetUrl || '/workspaces',
         };
+      case 'canvas.shared':
+        return {
+          recipientUserIds,
+          deliveryChannels: ['in_app', 'websocket'],
+          title: 'Canvas shared with you',
+          body: `shared "${payload?.canvasTitle || 'a canvas'}" with you as ${payload?.role === 'editor' ? 'writer' : 'reader'}.`,
+          actorName: payload?.actorName || 'Someone',
+          icon: 'fc-document',
+          targetUrl: payload?.targetUrl || '/workspaces',
+        };
       // case 'conversation.reply':
       //   return {
       //     recipientUserIds,

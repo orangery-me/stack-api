@@ -11,6 +11,7 @@ export interface SendMessageRequest {
   channelId: string;
   content: string;
   messageType?: string;
+  metadata?: Record<string, any> | string;
 }
 
 export interface MessageResponse {
@@ -23,6 +24,7 @@ export interface MessageResponse {
   messageType: string;
   createdAt: string;
   channelId: string;
+  metadata?: Record<string, any> | string;
 }
 
 export interface GetMessagesRequest {
@@ -63,10 +65,14 @@ export class ChatClientService implements OnModuleInit {
           channelId: data.channelId,
           content: data.content,
           messageType: data.messageType || 'text',
+          metadata: this.stringifyMetadata(data.metadata),
         })
       );
 
-      return response;
+      return {
+        ...response,
+        metadata: this.parseMetadata(response.metadata),
+      };
     } catch (error: any) {
       console.error('[ChatClientService] Error sending message:', error?.message || error);
       throw error;
@@ -83,10 +89,31 @@ export class ChatClientService implements OnModuleInit {
         })
       );
 
-      return response;
+      return {
+        ...response,
+        messages: (response.messages || []).map((message) => ({
+          ...message,
+          metadata: this.parseMetadata(message.metadata),
+        })),
+      };
     } catch (error: any) {
       console.error('[ChatClientService] Error getting messages:', error?.message || error);
       throw error;
+    }
+  }
+
+  private stringifyMetadata(metadata?: Record<string, any> | string): string {
+    if (!metadata) return '';
+    return typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
+  }
+
+  private parseMetadata(metadata?: Record<string, any> | string): Record<string, any> | undefined {
+    if (!metadata) return undefined;
+    if (typeof metadata !== 'string') return metadata;
+    try {
+      return JSON.parse(metadata);
+    } catch {
+      return undefined;
     }
   }
 }
