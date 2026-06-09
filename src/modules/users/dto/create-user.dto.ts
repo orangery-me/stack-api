@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Length, Matches } from 'class-validator';
-
-import { StatusEnum } from '@Constant/enums';
+import { UserStatusEnum, UserRoleEnum } from '@Constant/enums';
 
 export class CreateUserDto {
   @ApiPropertyOptional({
@@ -51,14 +50,25 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({
     description: 'Trạng thái tài khoản',
-    enum: StatusEnum,
-    example: StatusEnum.ACTIVE,
-    default: StatusEnum.ACTIVE,
+    enum: UserStatusEnum,
+    example: UserStatusEnum.ACTIVE,
+    default: UserStatusEnum.ACTIVE,
   })
   @Expose()
   @IsOptional()
-  @IsEnum(StatusEnum, { message: 'Trạng thái không hợp lệ' })
-  status?: StatusEnum;
+  @IsEnum(UserStatusEnum, { message: 'Trạng thái không hợp lệ' })
+  status?: UserStatusEnum;
+
+  @ApiPropertyOptional({
+    description: 'Vai trò người dùng',
+    enum: UserRoleEnum,
+    example: UserRoleEnum.USER,
+    default: UserRoleEnum.USER,
+  })
+  @Expose()
+  @IsOptional()
+  @IsEnum(UserRoleEnum, { message: 'Vai trò không hợp lệ' })
+  role?: UserRoleEnum;
 
   @ApiProperty({
     description: 'Họ và tên',

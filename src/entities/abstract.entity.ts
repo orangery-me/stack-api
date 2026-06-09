@@ -5,7 +5,7 @@ export abstract class AbstractEntity {
   @Transform(({ value }) => value?.toString())
   id: string;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   @Exclude()
   createdAt: Date;
 
@@ -13,7 +13,7 @@ export abstract class AbstractEntity {
   @Exclude()
   createdBy?: string;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   @Exclude()
   updatedAt: Date;
 
@@ -21,7 +21,7 @@ export abstract class AbstractEntity {
   @Exclude()
   updatedBy?: string;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   @Exclude()
   deletedAt?: Date;
 

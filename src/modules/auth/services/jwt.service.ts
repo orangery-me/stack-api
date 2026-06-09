@@ -119,6 +119,7 @@ export class JwtTokenService {
     return {
       sub: user.id,
       email: user.email,
+      role: user.role,
     };
   }
 
