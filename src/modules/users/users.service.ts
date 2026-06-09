@@ -1,15 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-// import * as bcrypt from 'bcrypt';
 import * as bcrypt from 'bcryptjs';
 import { plainToClass } from 'class-transformer';
 import * as fs from 'fs';
-import { Model } from 'mongoose';
-import { Repository, IsNull, Like } from 'typeorm';
+import { Repository, IsNull, Like, Not } from 'typeorm';
 
 import { PageMetaDto, ResponseItem, ResponsePaginate } from '@app/common/dtos';
 import { convertPath } from '@app/common/utils';
-import { StatusEnum, UserStatusEnum } from '@Constant/enums';
+import { UserStatusEnum } from '@Constant/enums';
 import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from '@UsersModule/dto/create-user.dto';
 import { GetUsersDto } from '@UsersModule/dto/get-users.dto';
@@ -27,94 +25,114 @@ export class UsersService {
     private readonly configService: ConfigService,
 
     @InjectRepository(UserEntity)
-    private readonly userModel: Model<UserEntity>,
-    @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>
   ) {}
 
   async create(avatar, params: CreateUserDto): Promise<ResponseItem<UserDto>> {
-    const emailExisted = await this.userModel.findOne({
-      email: params.email,
-      deletedAt: null,
+    const emailExisted = await this.userRepository.findOne({
+      where: {
+        email: params.email,
+        deletedAt: IsNull(),
+      },
     });
     if (emailExisted) throw new BadRequestException('Email already exists');
 
-    const existPhone = await this.userModel.findOne({
-      phone: params.phone,
-      deletedAt: null,
+    const existPhone = await this.userRepository.findOne({
+      where: {
+        phone: params.phone,
+        deletedAt: IsNull(),
+      },
     });
     if (existPhone) throw new BadRequestException('Phone number already exists');
 
+    let avatarPath = null;
     if (avatar) {
-      params = { ...params, avatar: avtPathName('users', avatar.filename) };
-    } else {
-      params = { ...params, avatar: null };
+      avatarPath = avtPathName('users', avatar.filename);
     }
 
-    const user = new this.userModel(params);
-    await user.save();
+    const newUser = this.userRepository.create({
+      ...params,
+      status: params.status || UserStatusEnum.ACTIVE,
+      avatar: avatarPath,
+    });
+    const savedUser = await this.userRepository.save(newUser);
 
-    return new ResponseItem(user, 'User created successfully');
+    return new ResponseItem(savedUser, 'User created successfully');
   }
 
   async resetPassword(id: string): Promise<ResponseItem<UserDto>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!user) {
       throw new BadRequestException('Employee does not exist');
     }
-    const newPassword = await bcrypt.hash(this.configService.get<string>('RESET_PASSWORD'), 10);
+    const plainResetPassword = this.configService.get<string>('RESET_PASSWORD') || '123456';
+    const newPassword = await bcrypt.hash(plainResetPassword, 10);
 
-    await this.userModel.updateOne(
-      { _id: id },
-      {
-        password: newPassword,
-      }
-    );
-
-    const response = await this.userModel.findOne({ _id: id, deletedAt: null });
+    user.password = newPassword;
+    await this.userRepository.save(user);
 
     const result = {
-      ...response.toObject(),
-      password: this.configService.get<string>('RESET_PASSWORD'),
+      ...user,
+      password: plainResetPassword,
     };
 
     return new ResponseItem(result, 'Password reset successfully');
   }
 
   async changePassword(id: string, data: ChangePasswordDto): Promise<ResponseItem<UserDto>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!user || !bcrypt.compareSync(data.oldPassword, user.password)) {
       throw new BadRequestException('Old password is incorrect');
     }
 
     const password = await bcrypt.hash(data.newPassword, 10);
-    await this.userModel.updateOne({ _id: id }, { password });
+    user.password = password;
+    await this.userRepository.save(user);
 
     return new ResponseItem(user, 'Password changed successfully');
   }
 
   async getUsers(params: GetUsersDto): Promise<ResponsePaginate<UserDto>> {
-    const statusFilter = params.status ? [params.status] : [StatusEnum.ACTIVE, StatusEnum.INACTIVE];
-    const searchRegex = new RegExp(params.search || '', 'i');
+    const qb = this.userRepository.createQueryBuilder('user')
+      .where('user.deletedAt IS NULL');
 
-    const query = this.userModel.find({
-      status: { $in: statusFilter },
-      name: { $regex: searchRegex },
-      deletedAt: null,
-    });
+    if (params.status) {
+      qb.andWhere('user.status = :status', { status: params.status });
+    } else {
+      qb.andWhere('user.status IN (:...statuses)', {
+        statuses: [
+          UserStatusEnum.ACTIVE,
+          UserStatusEnum.INACTIVE,
+          UserStatusEnum.BLOCKED,
+          UserStatusEnum.PENDING_VERIFICATION
+        ],
+      });
+    }
 
-    const total = await this.userModel.countDocuments({
-      status: { $in: statusFilter },
-      name: { $regex: searchRegex },
-      deletedAt: null,
-    });
+    if (params.search) {
+      qb.andWhere('(LOWER(user.name) LIKE :search OR LOWER(user.email) LIKE :search)', {
+        search: `%${params.search.toLowerCase()}%`,
+      });
+    }
 
-    const sortOrder = params.order === 'ASC' ? 1 : -1;
-    const result = await query
-      .sort({ [params.orderBy]: sortOrder })
-      .skip(params.skip)
-      .limit(params.take)
-      .exec();
+    // Sorting
+    const orderBy = params.orderBy || 'createdAt';
+    const order = params.order || 'DESC';
+    qb.orderBy(`user.${orderBy}`, order);
+
+    // Pagination
+    const total = await qb.getCount();
+    const skip = params.skip || 0;
+    const take = params.take || 10;
+    
+    const result = await qb
+      .skip(skip)
+      .take(take)
+      .getMany();
 
     const pageMetaDto = new PageMetaDto({ itemCount: total, pageOptionsDto: params });
 
@@ -122,14 +140,13 @@ export class UsersService {
   }
 
   async getUser(id: string): Promise<ResponseItem<UserDto>> {
-    const user = await this.userModel.findOne({
-      _id: id,
-      deletedAt: null,
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
     });
     if (!user) throw new BadRequestException('Employee does not exist');
 
     return new ResponseItem(
-      { ...user.toObject(), avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null },
+      { ...user, avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null },
       'Success'
     );
   }
@@ -148,103 +165,120 @@ export class UsersService {
   }
 
   async updateProfile(id: string, updateUserDto: UpdateUserDto): Promise<ResponseItem<UserDto>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!user) {
       throw new BadRequestException('Profile information does not exist');
     }
 
-    const phoneExisted = await this.userModel.findOne({
-      phone: updateUserDto.phone,
-      _id: { $ne: id },
-      deletedAt: null,
-    });
-    if (phoneExisted) {
-      throw new BadRequestException('Phone number already exists');
+    if (updateUserDto.phone) {
+      const phoneExisted = await this.userRepository.findOne({
+        where: {
+          phone: updateUserDto.phone,
+          id: Not(id),
+          deletedAt: IsNull(),
+        },
+      });
+      if (phoneExisted) {
+        throw new BadRequestException('Phone number already exists');
+      }
     }
 
-    await this.userModel.updateOne(
-      { _id: id },
-      {
-        ...plainToClass(UpdateUserDto, updateUserDto, { excludeExtraneousValues: true }),
-      }
-    );
+    const updatedFields = plainToClass(UpdateUserDto, updateUserDto, { excludeExtraneousValues: true });
 
-    const result = await this.userModel.findOne({ _id: id, deletedAt: null });
+    Object.assign(user, updatedFields);
+    await this.userRepository.save(user);
 
-    return new ResponseItem(result, 'User updated successfully');
+    return new ResponseItem(user, 'User updated successfully');
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<ResponseItem<UserDto>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!user) {
       throw new BadRequestException('Employee does not exist');
     }
 
-    const emailExisted = await this.userModel.findOne({
-      email: updateUserDto.email,
-      _id: { $ne: id },
-      deletedAt: null,
+    const emailExisted = await this.userRepository.findOne({
+      where: {
+        email: updateUserDto.email,
+        id: Not(id),
+        deletedAt: IsNull(),
+      },
     });
     if (emailExisted) throw new BadRequestException('Email already exists');
 
-    const phoneExisted = await this.userModel.findOne({
-      phone: updateUserDto.phone,
-      _id: { $ne: id },
-      deletedAt: null,
-    });
-    if (phoneExisted) {
-      throw new BadRequestException('Phone number already exists');
+    if (updateUserDto.phone) {
+      const phoneExisted = await this.userRepository.findOne({
+        where: {
+          phone: updateUserDto.phone,
+          id: Not(id),
+          deletedAt: IsNull(),
+        },
+      });
+      if (phoneExisted) {
+        throw new BadRequestException('Phone number already exists');
+      }
     }
 
-    await this.userModel.updateOne(
-      { _id: id },
-      {
-        ...plainToClass(UpdateUserDto, updateUserDto, { excludeExtraneousValues: true }),
-      }
-    );
+    const updatedFields = plainToClass(UpdateUserDto, updateUserDto, { excludeExtraneousValues: true });
 
-    const result = await this.userModel.findOne({ _id: id, deletedAt: null });
+    Object.assign(user, updatedFields);
+    await this.userRepository.save(user);
 
-    return new ResponseItem(result, 'User updated successfully');
+    return new ResponseItem(user, 'User updated successfully');
   }
 
   async deleteUser(id: string): Promise<ResponseItem<null>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!user) throw new BadRequestException('User does not exist');
     if (user.status === UserStatusEnum.ACTIVE) throw new BadRequestException('Cannot delete an active employee');
 
-    await this.userModel.updateOne({ _id: id }, { deletedAt: new Date() });
+    user.deletedAt = new Date();
+    await this.userRepository.save(user);
 
     return new ResponseItem(null, 'Employee deleted successfully');
   }
 
   async uploadAvatar(id: string, file: Express.Multer.File): Promise<ResponseItem<any>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
 
     if (!user) {
       throw new BadRequestException('Employee does not exist');
     }
 
-    await this.userModel.updateOne({ _id: id }, { avatar: avtPathName('users', file.filename) });
+    const oldAvatar = user.avatar;
+    user.avatar = avtPathName('users', file.filename);
+    await this.userRepository.save(user);
 
-    if (fs.existsSync(user.avatar)) {
-      fs.unlinkSync(user.avatar);
+    if (oldAvatar && fs.existsSync(oldAvatar)) {
+      fs.unlinkSync(oldAvatar);
     }
 
     return new ResponseItem(null, 'Avatar updated successfully');
   }
 
   async removeAvatar(id: string): Promise<ResponseItem<any>> {
-    const user = await this.userModel.findOne({ _id: id, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
 
     if (!user) {
       throw new BadRequestException('Employee does not exist');
     }
 
-    await this.userModel.updateOne({ _id: id }, { avatar: null });
+    const oldAvatar = user.avatar;
+    user.avatar = null;
+    await this.userRepository.save(user);
 
-    if (fs.existsSync(user.avatar)) {
-      fs.unlinkSync(user.avatar);
+    if (oldAvatar && fs.existsSync(oldAvatar)) {
+      fs.unlinkSync(oldAvatar);
     }
 
     return new ResponseItem(null, 'Avatar removed successfully');
@@ -263,7 +297,6 @@ export class UsersService {
       order: { createdAt: 'DESC' },
     });
 
-    // Map to simple user objects for autocomplete (not full UserDto)
     const userDtos = users.map((user) => ({
       id: user.id,
       email: user.email,

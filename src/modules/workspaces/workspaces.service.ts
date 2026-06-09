@@ -11,7 +11,7 @@ import * as crypto from 'crypto';
 import { ResponseItem } from '@app/common/dtos';
 import { UserEntity } from '@app/entities';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity, WorkspaceInviteEntity } from '@app/entities';
-import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum } from '@Constant/enums';
+import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum, UserRoleEnum } from '@Constant/enums';
 import { ChannelsService } from '../channels/channels.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChannelType } from '../channels/dto/create-channel.dto';
@@ -425,15 +425,31 @@ export class WorkspacesService {
   }
 
   async getWorkspaceById(workspaceId: string, userId: string): Promise<ResponseItem<WorkspaceDto>> {
-    const membership = await this.workspaceMemberRepository.findOne({
-      where: {
-        workspaceId,
-        userId,
-      },
-      relations: ['workspace', 'role'],
-    });
+    // Admin bypass — no membership check needed
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const isAdmin = user?.role === UserRoleEnum.ADMIN;
+
+    const membership = isAdmin
+      ? await this.workspaceMemberRepository.findOne({
+          where: { workspaceId },
+          relations: ['workspace', 'role'],
+        })
+      : await this.workspaceMemberRepository.findOne({
+          where: { workspaceId, userId },
+          relations: ['workspace', 'role'],
+        });
 
     if (!membership) {
+      if (isAdmin) {
+        // Admin can view workspace metadata even without membership
+        const ws = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
+        if (!ws) throw new NotFoundException('Workspace does not exist');
+        return new ResponseItem<WorkspaceDto>({
+          id: ws.id, name: ws.name, slug: ws.slug,
+          ownerId: ws.ownerId, plan: ws.plan as WorkspacePlanEnum,
+          settings: ws.settings, createdAt: ws.createdAt,
+        } as WorkspaceDto, 'Workspace fetched successfully');
+      }
       throw new ForbiddenException('You are not a member of this workspace');
     }
 
@@ -463,16 +479,15 @@ export class WorkspacesService {
       throw new NotFoundException('Workspace does not exist');
     }
 
-    const requesterMembership = await this.workspaceMemberRepository.findOne({
-      where: {
-        workspaceId,
-        userId: requesterUserId,
-        status: WorkspaceMemberStatusEnum.ACTIVE,
-      },
-    });
-
-    if (!requesterMembership) {
-      throw new UnauthorizedException('You are not a member of this workspace');
+    // Admin bypass — no membership check needed
+    const user = await this.userRepository.findOne({ where: { id: requesterUserId } });
+    if (user?.role !== UserRoleEnum.ADMIN) {
+      const requesterMembership = await this.workspaceMemberRepository.findOne({
+        where: { workspaceId, userId: requesterUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      });
+      if (!requesterMembership) {
+        throw new UnauthorizedException('You are not a member of this workspace');
+      }
     }
 
     // Get all members with relations
@@ -500,7 +515,22 @@ export class WorkspacesService {
   }
 
   async getUserWorkspaces(userId: string): Promise<ResponseItem<WorkspaceDto[]>> {
-    // Get all workspaces where user is a member
+    // Admin can view all workspaces
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (user?.role === UserRoleEnum.ADMIN) {
+      const allWorkspaces = await this.workspaceRepository.find({
+        relations: ['owner'],
+        order: { createdAt: 'DESC' },
+      });
+      const workspaceDtos: WorkspaceDto[] = allWorkspaces.map((ws) => ({
+        id: ws.id, name: ws.name, slug: ws.slug,
+        ownerId: ws.ownerId, ownerName: ws.owner?.name, ownerEmail: ws.owner?.email,
+        plan: ws.plan as WorkspacePlanEnum, settings: ws.settings, createdAt: ws.createdAt,
+      }));
+      return new ResponseItem<WorkspaceDto[]>(workspaceDtos, 'Workspaces fetched successfully');
+    }
+
+    // Normal user — get only their workspaces
     const members = await this.workspaceMemberRepository.find({
       where: { userId, status: WorkspaceMemberStatusEnum.ACTIVE },
       relations: ['workspace', 'workspace.owner'],
