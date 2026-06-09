@@ -22,6 +22,10 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { TasksModule } from './modules/tasks/tasks.module';
 import { HuddleModule } from './modules/huddle/huddle.module';
 import { SubtitleModule } from './modules/subtitle/subtitle.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { AuditLogInterceptor } from './modules/audit-log/audit-log.interceptor';
 import * as Joi from 'joi';
 
 @Module({
@@ -139,11 +143,18 @@ import * as Joi from 'joi';
     NotificationsModule,
     HuddleModule,
     SubtitleModule,
+    AdminModule,
+    SystemSettingsModule,
+    AuditLogModule,
   ],
   providers: [
     {
       provide: APP_INTERCEPTOR,
       useClass: ClassSerializerInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditLogInterceptor,
     },
   ],
 })

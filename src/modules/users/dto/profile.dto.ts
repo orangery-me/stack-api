@@ -2,6 +2,9 @@ import { Expose } from 'class-transformer';
 
 export class ProfileDto {
   @Expose()
+  id: string;
+
+  @Expose()
   email: string;
 
   @Expose()
@@ -9,6 +12,12 @@ export class ProfileDto {
 
   @Expose()
   name: string;
+
+  @Expose()
+  role: string;
+
+  @Expose()
+  status: string;
 
   password: string;
 

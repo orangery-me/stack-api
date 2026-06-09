@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
-import { StatusEnum } from '@Constant/enums';
+import { UserStatusEnum, UserRoleEnum } from '@Constant/enums';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class UpdateUserDto {
@@ -28,26 +28,33 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({
     description: 'Trạng thái tài khoản',
-    enum: StatusEnum,
-    example: StatusEnum.ACTIVE,
+    enum: UserStatusEnum,
+    example: UserStatusEnum.ACTIVE,
   })
   @Expose()
   @IsOptional()
-  @IsEnum(StatusEnum, { message: 'Trạng thái không hợp lệ' })
-  status?: StatusEnum;
+  @IsEnum(UserStatusEnum, { message: 'Trạng thái không hợp lệ' })
+  status?: UserStatusEnum;
 
-  @ApiProperty({
-    description: 'Số điện thoại',
-    example: '0123456789',
-    minLength: 10,
-    maxLength: 10,
+  @ApiPropertyOptional({
+    description: 'Vai trò người dùng',
+    enum: UserRoleEnum,
+    example: UserRoleEnum.USER,
   })
   @Expose()
-  @IsNotEmpty({ message: 'Số điện thoại không được để trống' })
+  @IsOptional()
+  @IsEnum(UserRoleEnum, { message: 'Vai trò không hợp lệ' })
+  role?: UserRoleEnum;
+
+  @ApiPropertyOptional({
+    description: 'Số điện thoại',
+    example: '0123456789',
+  })
+  @Expose()
+  @IsOptional()
   @IsString({ message: 'Số điện thoại phải là chuỗi' })
-  @Length(10, 10, { message: 'Số điện thoại phải có đúng 10 số' })
   @Matches(/^[0-9]+$/, { message: 'Số điện thoại chỉ được chứa số' })
-  phone: string;
+  phone?: string;
 
   @ApiPropertyOptional({
     description: 'Địa chỉ',
