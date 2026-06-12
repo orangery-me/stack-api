@@ -12,6 +12,7 @@ import {
 } from '@app/entities';
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum } from '@Constant/enums';
 import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
+import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { ChannelDto } from './dto/channel.dto';
 import { AddChannelMemberDto } from './dto/add-channel-member.dto';
 import { ChannelMemberDto } from './dto/channel-member.dto';
@@ -93,11 +94,65 @@ export class ChannelsService {
       name: savedChannel.name,
       createdById: savedChannel.createdById,
       createdAt: savedChannel.createdAt,
+      metadata: savedChannel.metadata || {},
       settings: buildChannelSettings(savedChannel.settings),
       isDefault: savedChannel.isDefault,
     };
 
     return new ResponseItem<ChannelDto>(channelDto, 'Channel created successfully');
+  }
+
+  async findOrCreateDirectMessage(
+    workspaceId: string,
+    actorUserId: string,
+    dto: CreateDirectMessageDto
+  ): Promise<ResponseItem<ChannelDto>> {
+    const actorMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: actorUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+    });
+
+    if (!actorMember) {
+      throw new ForbiddenException('You are not a member of this workspace');
+    }
+
+    const targetMember = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId: dto.targetUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
+    });
+
+    if (!targetMember) {
+      throw new NotFoundException('Target user is not an active workspace member');
+    }
+
+    const existingDirectMessage = await this.findExistingDirectMessage(workspaceId, actorUserId, dto.targetUserId);
+
+    if (existingDirectMessage) {
+      return this.buildChannelResponse(existingDirectMessage, actorMember, 'Direct message fetched successfully');
+    }
+
+    const isSelfDirectMessage = actorUserId === dto.targetUserId;
+    const participantUserIds = Array.from(new Set([actorUserId, dto.targetUserId])).sort();
+    const channel = this.channelRepository.create({
+      workspaceId,
+      type: ChannelType.DM,
+      name: null,
+      createdById: actorMember.id,
+      metadata: {
+        dm: {
+          participantUserIds,
+        },
+      },
+      settings: buildChannelSettings({}),
+      isDefault: false,
+    });
+
+    const savedChannel = await this.channelRepository.save(channel);
+    await this.initializeChannelRoles(savedChannel.id);
+    await this.addSingleMemberToChannel(savedChannel.id, actorMember.id, 'manager');
+    if (!isSelfDirectMessage) {
+      await this.addSingleMemberToChannel(savedChannel.id, targetMember.id, 'member');
+    }
+
+    return this.buildChannelResponse(savedChannel, actorMember, 'Direct message created successfully');
   }
 
   async addMemberToAllPublicChannels(workspaceId: string, memberId: string): Promise<void> {
@@ -315,7 +370,9 @@ export class ChannelsService {
       ...(dto.invitePolicy ? { invitePolicy: dto.invitePolicy } : {}),
       ...(dto.postPolicy ? { postPolicy: dto.postPolicy } : {}),
       ...(dto.pinMessagePolicy ? { pinMessagePolicy: dto.pinMessagePolicy } : {}),
-      ...(dto.threadPolicy ? { threadPolicy: dto.threadPolicy } : {}),
+      ...(dto.deleteMessagePolicy ? { deleteMessagePolicy: dto.deleteMessagePolicy } : {}),
+      ...(dto.taskListCreatePolicy ? { taskListCreatePolicy: dto.taskListCreatePolicy } : {}),
+      ...(dto.taskItemEditPolicy ? { taskItemEditPolicy: dto.taskItemEditPolicy } : {}),
     };
 
     channel.settings = {
@@ -458,6 +515,7 @@ export class ChannelsService {
         name: channel.name,
         createdById: channel.createdById,
         createdAt: channel.createdAt,
+        metadata: channel.metadata || {},
         isDefault: channel.isDefault,
         permissions: capabilityMap,
       });
@@ -629,5 +687,65 @@ export class ChannelsService {
       actorChannelMember,
       actorPermissions,
     };
+  }
+
+  private async findExistingDirectMessage(
+    workspaceId: string,
+    actorUserId: string,
+    targetUserId: string
+  ): Promise<ChannelEntity | null> {
+    const directMessageChannels = await this.channelRepository.find({
+      where: { workspaceId, type: ChannelType.DM },
+      relations: ['members', 'members.member'],
+      order: { createdAt: 'ASC' },
+    });
+
+    for (const channel of directMessageChannels) {
+      const memberUserIds = (channel.members || [])
+        .map((channelMember) => channelMember.member?.userId)
+        .filter(Boolean);
+      const uniqueMemberUserIds = Array.from(new Set(memberUserIds));
+
+      if (
+        uniqueMemberUserIds.length === (actorUserId === targetUserId ? 1 : 2) &&
+        uniqueMemberUserIds.includes(actorUserId) &&
+        uniqueMemberUserIds.includes(targetUserId)
+      ) {
+        return channel;
+      }
+    }
+
+    return null;
+  }
+
+  private async buildChannelResponse(
+    channel: ChannelEntity,
+    actorMember: WorkspaceMemberEntity,
+    message: string
+  ): Promise<ResponseItem<ChannelDto>> {
+    const channelMember = await this.channelMemberRepository.findOne({
+      where: { channelId: channel.id, memberId: actorMember.id },
+    });
+    const normalizedPermissions = await this.getChannelPermissions(
+      channel.id,
+      channelMember?.memberRole as ChannelRoleName
+    );
+    const capabilityMap = this.channelPermissionResolver.buildCapabilityMap(normalizedPermissions, channel.settings);
+
+    return new ResponseItem<ChannelDto>(
+      {
+        id: channel.id,
+        workspaceId: channel.workspaceId,
+        type: channel.type as ChannelType,
+        name: channel.name,
+        createdById: channel.createdById,
+        createdAt: channel.createdAt,
+        metadata: channel.metadata || {},
+        settings: buildChannelSettings(channel.settings),
+        permissions: capabilityMap,
+        isDefault: channel.isDefault,
+      },
+      message
+    );
   }
 }

@@ -4,6 +4,7 @@ import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { ChannelsService } from './channels.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
+import { CreateDirectMessageDto } from './dto/create-direct-message.dto';
 import { ChannelDto } from './dto/channel.dto';
 import { AddChannelMemberDto } from './dto/add-channel-member.dto';
 import { ChannelMemberDto } from './dto/channel-member.dto';
@@ -33,6 +34,27 @@ export class ChannelsController {
     @Body() createDto: CreateChannelDto
   ): Promise<ResponseItem<ChannelDto>> {
     return this.channelsService.createChannel(workspaceId, request.user.userId, createDto);
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Post('direct-messages')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Find or create a direct-message channel with a workspace member' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiBody({ type: CreateDirectMessageDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Direct message channel fetched or created successfully',
+    type: ChannelDto,
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - not a workspace member' })
+  @ApiResponse({ status: 404, description: 'Target user not found in workspace' })
+  async findOrCreateDirectMessage(
+    @Req() request,
+    @Param('workspaceId') workspaceId: string,
+    @Body() dto: CreateDirectMessageDto
+  ): Promise<ResponseItem<ChannelDto>> {
+    return this.channelsService.findOrCreateDirectMessage(workspaceId, request.user.userId, dto);
   }
 
   @UseGuards(JwtAccessTokenGuard)

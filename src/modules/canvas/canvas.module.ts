@@ -9,12 +9,14 @@ import { WorkspaceCanvasController } from './workspace-canvas.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ChatClientModule } from '../chat-client/chat-client.module';
 import { ChatModule } from '../chat/chat.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     NotificationsModule,
     ChatClientModule,
     ChatModule,
+    AuthModule,
     TypeOrmModule.forFeature([
       CanvasEntity,
       ChannelEntity,

@@ -26,8 +26,15 @@ export interface SessionDto {
   userId: string;
   title: string;
   isActive: boolean;
+  scopeType?: string;
+  scopeId?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SessionScopeDto {
+  scopeType?: string;
+  scopeId?: string;
 }
 
 export interface ChatMessageDto {
@@ -138,9 +145,9 @@ interface AgentServiceClient {
 
   // Sessions
   updateSession(data: { userId: string; sessionId: string; title: string }): Observable<SessionDto>;
-  getOrCreateActiveSession(data: { userId: string }): Observable<SessionDto>;
-  listSessions(data: { userId: string }): Observable<{ sessions: SessionDto[] }>;
-  createSession(data: { userId: string; title?: string }): Observable<SessionDto>;
+  getOrCreateActiveSession(data: { userId: string; scopeType?: string; scopeId?: string }): Observable<SessionDto>;
+  listSessions(data: { userId: string; scopeType?: string; scopeId?: string }): Observable<{ sessions: SessionDto[] }>;
+  createSession(data: { userId: string; title?: string; scopeType?: string; scopeId?: string }): Observable<SessionDto>;
 
   // Messages
   getSessionMessages(data: {
@@ -148,6 +155,8 @@ interface AgentServiceClient {
     sessionId: string;
     page?: number;
     size?: number;
+    scopeType?: string;
+    scopeId?: string;
   }): Observable<MessageListDto>;
   updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Observable<ChatMessageDto>;
 
@@ -237,21 +246,27 @@ export class AgentClientService implements OnModuleInit {
     return lastValueFrom(this.agentService.updateSession({ userId, sessionId, title }));
   }
 
-  async getOrCreateActiveSession(userId: string): Promise<SessionDto> {
-    return lastValueFrom(this.agentService.getOrCreateActiveSession({ userId }));
+  async getOrCreateActiveSession(userId: string, scope?: SessionScopeDto): Promise<SessionDto> {
+    return lastValueFrom(this.agentService.getOrCreateActiveSession({ userId, ...this.normalizeScope(scope) }));
   }
 
-  async listSessions(userId: string): Promise<SessionDto[]> {
-    const result = await lastValueFrom(this.agentService.listSessions({ userId }));
+  async listSessions(userId: string, scope?: SessionScopeDto): Promise<SessionDto[]> {
+    const result = await lastValueFrom(this.agentService.listSessions({ userId, ...this.normalizeScope(scope) }));
     return result.sessions ?? [];
   }
 
-  async createSession(userId: string, title?: string): Promise<SessionDto> {
-    return lastValueFrom(this.agentService.createSession({ userId, title }));
+  async createSession(userId: string, title?: string, scope?: SessionScopeDto): Promise<SessionDto> {
+    return lastValueFrom(this.agentService.createSession({ userId, title, ...this.normalizeScope(scope) }));
   }
 
-  async getSessionMessages(userId: string, sessionId: string, page = 1, size = 50): Promise<MessageListDto> {
-    return lastValueFrom(this.agentService.getSessionMessages({ userId, sessionId, page, size }));
+  async getSessionMessages(
+    userId: string,
+    sessionId: string,
+    page = 1,
+    size = 50,
+    scope?: SessionScopeDto
+  ): Promise<MessageListDto> {
+    return lastValueFrom(this.agentService.getSessionMessages({ userId, sessionId, page, size, ...this.normalizeScope(scope) }));
   }
 
   async updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Promise<ChatMessageDto> {
@@ -314,5 +329,14 @@ export class AgentClientService implements OnModuleInit {
 
   async taskApplyAction(data: TaskApplyActionRequest): Promise<TaskApplyActionResponse> {
     return lastValueFrom(this.agentService.taskApplyAction(data));
+  }
+
+  private normalizeScope(scope?: SessionScopeDto): { scopeType: string; scopeId?: string } {
+    const scopeType = scope?.scopeType === 'canvas' ? 'canvas' : 'general';
+    const scopeId = scopeType === 'canvas' ? scope?.scopeId?.trim() : undefined;
+    return {
+      scopeType,
+      ...(scopeId ? { scopeId } : {}),
+    };
   }
 }

@@ -13,6 +13,8 @@ import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
+import { ChannelPermissionResolver } from '../../policy/channel/channel-permission.resolver';
+import { PermissionService } from '../../policy/permission.service';
 
 @Module({
   imports: [
@@ -29,7 +31,7 @@ import { StorageModule } from '../storage/storage.module';
     NotificationsModule,
   ],
   controllers: [TasksController],
-  providers: [TasksService],
+  providers: [TasksService, ChannelPermissionResolver, PermissionService],
   exports: [TasksService],
 })
 export class TasksModule {}

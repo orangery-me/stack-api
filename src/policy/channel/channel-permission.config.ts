@@ -6,7 +6,9 @@ export interface ChannelPermissionSettings {
   invitePolicy: ChannelPermissionPolicy;
   postPolicy: ChannelPermissionPolicy;
   pinMessagePolicy: ChannelPermissionPolicy;
-  threadPolicy: ChannelPermissionPolicy;
+  deleteMessagePolicy: ChannelPermissionPolicy;
+  taskListCreatePolicy: ChannelPermissionPolicy;
+  taskItemEditPolicy: ChannelPermissionPolicy;
 }
 
 export interface ChannelSettingsShape {
@@ -21,19 +23,24 @@ export type ChannelPermissionAction =
   | 'channel:invite_member'
   | 'channel:post_message'
   | 'channel:pin_message'
-  | 'channel:create_thread';
+  | 'channel:delete_message'
+  | 'channel:create_task_list'
+  | 'channel:edit_task_item';
 
 export interface ChannelActionConfigEntry {
   type: 'static' | 'dynamic';
   allowedRoles?: ChannelRoleName[];
   settingKey?: keyof ChannelPermissionSettings;
+  fallbackActions?: string[];
 }
 
 export const DEFAULT_CHANNEL_PERMISSION_SETTINGS: ChannelPermissionSettings = {
   invitePolicy: 'manager_only',
   postPolicy: 'all_members',
   pinMessagePolicy: 'manager_only',
-  threadPolicy: 'all_members',
+  deleteMessagePolicy: 'all_members',
+  taskListCreatePolicy: 'all_members',
+  taskItemEditPolicy: 'all_members',
 };
 
 export const CHANNEL_ACTION_CONFIG: Record<ChannelPermissionAction, ChannelActionConfigEntry> = {
@@ -61,9 +68,19 @@ export const CHANNEL_ACTION_CONFIG: Record<ChannelPermissionAction, ChannelActio
     type: 'dynamic',
     settingKey: 'pinMessagePolicy',
   },
-  'channel:create_thread': {
+  'channel:delete_message': {
     type: 'dynamic',
-    settingKey: 'threadPolicy',
+    settingKey: 'deleteMessagePolicy',
+  },
+  'channel:create_task_list': {
+    type: 'dynamic',
+    settingKey: 'taskListCreatePolicy',
+    fallbackActions: ['task:create'],
+  },
+  'channel:edit_task_item': {
+    type: 'dynamic',
+    settingKey: 'taskItemEditPolicy',
+    fallbackActions: ['task:update', 'task:update_own'],
   },
 };
 
@@ -74,7 +91,9 @@ export const CHANNEL_PERMISSION_CAPABILITY_MAP = {
   canInvite: 'channel:invite_member',
   canPost: 'channel:post_message',
   canPinMessage: 'channel:pin_message',
-  canCreateThread: 'channel:create_thread',
+  canDeleteMessage: 'channel:delete_message',
+  canCreateTaskList: 'channel:create_task_list',
+  canEditTaskItem: 'channel:edit_task_item',
 } as const;
 
 export type ChannelCapabilityKey = keyof typeof CHANNEL_PERMISSION_CAPABILITY_MAP;
@@ -89,9 +108,18 @@ export function normalizeChannelPermissionSettings(
       ? settings.permissions
       : {};
 
-  return {
+  const merged = {
     ...DEFAULT_CHANNEL_PERMISSION_SETTINGS,
     ...incomingPermissions,
+  };
+
+  return {
+    invitePolicy: merged.invitePolicy,
+    postPolicy: merged.postPolicy,
+    pinMessagePolicy: merged.pinMessagePolicy,
+    deleteMessagePolicy: merged.deleteMessagePolicy,
+    taskListCreatePolicy: merged.taskListCreatePolicy,
+    taskItemEditPolicy: merged.taskItemEditPolicy,
   };
 }
 

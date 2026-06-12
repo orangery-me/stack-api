@@ -8,6 +8,14 @@ import { UserEntity } from '@app/entities';
 import { JwtPayload } from '@Constant/types';
 import { TokenDto } from '../dto/token.dto';
 
+export interface CanvasCollabTokenPayload {
+  typ: 'canvas-collab';
+  sub: string;
+  canvasId: string;
+  role: 'viewer' | 'editor';
+  readOnly: boolean;
+}
+
 @Injectable()
 export class JwtTokenService {
   constructor(
@@ -42,6 +50,16 @@ export class JwtTokenService {
       secret: this.configService.get<string>('JWT_ACCESS_SECRETKEY'),
       expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES'),
     });
+  }
+
+  generateCanvasCollabToken(payload: CanvasCollabTokenPayload): { token: string; expiresIn: string } {
+    const expiresIn = this.configService.get<string>('CANVAS_COLLAB_SESSION_TTL') || '10m';
+    const token = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('CANVAS_COLLAB_SESSION_SECRET'),
+      expiresIn,
+    });
+
+    return { token, expiresIn };
   }
 
   /**

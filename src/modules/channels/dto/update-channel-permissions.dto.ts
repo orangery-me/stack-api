@@ -23,5 +23,15 @@ export class UpdateChannelPermissionsDto {
   @ApiPropertyOptional({ enum: CHANNEL_PERMISSION_POLICY_VALUES })
   @IsOptional()
   @IsIn(CHANNEL_PERMISSION_POLICY_VALUES)
-  threadPolicy?: ChannelPermissionPolicyValue;
+  deleteMessagePolicy?: ChannelPermissionPolicyValue;
+
+  @ApiPropertyOptional({ enum: CHANNEL_PERMISSION_POLICY_VALUES })
+  @IsOptional()
+  @IsIn(CHANNEL_PERMISSION_POLICY_VALUES)
+  taskListCreatePolicy?: ChannelPermissionPolicyValue;
+
+  @ApiPropertyOptional({ enum: CHANNEL_PERMISSION_POLICY_VALUES })
+  @IsOptional()
+  @IsIn(CHANNEL_PERMISSION_POLICY_VALUES)
+  taskItemEditPolicy?: ChannelPermissionPolicyValue;
 }

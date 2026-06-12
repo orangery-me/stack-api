@@ -16,6 +16,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ChatClientService } from '../chat-client/chat-client.service';
 import { ChatRealtimeService } from '../chat/chat-realtime.service';
 import { CanvasAccessDto } from './dto/canvas-access.dto';
+import { CanvasCollabTokenDto } from './dto/canvas-collab-token.dto';
+import { JwtTokenService } from '../auth/services/jwt.service';
 
 type CanvasAccessRole = 'viewer' | 'editor';
 
@@ -38,7 +40,8 @@ export class CanvasService {
     private readonly canvasRecentRepository: Repository<CanvasRecentEntity>,
     private readonly notificationsService: NotificationsService,
     private readonly chatClientService: ChatClientService,
-    private readonly chatRealtimeService: ChatRealtimeService
+    private readonly chatRealtimeService: ChatRealtimeService,
+    private readonly jwtTokenService: JwtTokenService
   ) {}
 
   private async verifyChannelMembership(
@@ -256,6 +259,24 @@ export class CanvasService {
       role,
       canEdit: role === 'editor',
       readOnly: role !== 'editor',
+    };
+  }
+
+  async createCanvasCollabToken(canvasId: string, userId: string): Promise<CanvasCollabTokenDto> {
+    const access = await this.getCanvasAccess(canvasId, userId);
+    const { token, expiresIn } = this.jwtTokenService.generateCanvasCollabToken({
+      typ: 'canvas-collab',
+      sub: userId,
+      canvasId,
+      role: access.role,
+      readOnly: access.readOnly,
+    });
+
+    return {
+      token,
+      expiresIn,
+      role: access.role,
+      readOnly: access.readOnly,
     };
   }
 
@@ -610,7 +631,7 @@ export class CanvasService {
 
     await this.setCanvasSharedVisibility(canvas, workspaceMember);
 
-    if (previousRole !== dto.role) {
+    if (previousRole !== dto.role && !dto.suppressSystemMessage) {
       await this.sendCanvasSharedSystemMessage({
         canvas,
         actorWorkspaceMember: workspaceMember,

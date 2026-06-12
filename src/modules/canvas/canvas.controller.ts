@@ -11,6 +11,7 @@ import { ShareCanvasWithUserDto } from './dto/share-canvas-user.dto';
 import { ShareCanvasWithChannelDto } from './dto/share-canvas-channel.dto';
 import { UpdateCanvasVisibilityDto } from './dto/update-canvas-visibility.dto';
 import { CanvasAccessDto } from './dto/canvas-access.dto';
+import { CanvasCollabTokenDto } from './dto/canvas-collab-token.dto';
 
 @ApiTags('canvas')
 @Controller('/canvases')
@@ -48,6 +49,24 @@ export class CanvasController {
   ): Promise<ResponseItem<CanvasAccessDto>> {
     const result = await this.canvasService.getCanvasAccess(canvasId, request.user.userId);
     return new ResponseItem<CanvasAccessDto>(result, 'Canvas access fetched successfully');
+  }
+
+  @UseGuards(JwtAccessTokenGuard)
+  @Post(':canvasId/collab-token')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Cấp token ngắn hạn để kết nối canvas collab server' })
+  @ApiParam({ name: 'canvasId', description: 'Canvas ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Canvas collab token issued successfully',
+    type: CanvasCollabTokenDto,
+  })
+  async createCanvasCollabToken(
+    @Req() request,
+    @Param('canvasId') canvasId: string
+  ): Promise<ResponseItem<CanvasCollabTokenDto>> {
+    const result = await this.canvasService.createCanvasCollabToken(canvasId, request.user.userId);
+    return new ResponseItem<CanvasCollabTokenDto>(result, 'Canvas collab token issued successfully');
   }
 
   @UseGuards(JwtAccessTokenGuard)
