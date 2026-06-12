@@ -12,4 +12,12 @@ export class ChatRealtimeService {
   emitNewMessage(channelId: string, message: unknown): void {
     this.server?.to(`channel:${channelId}`).emit('new_message', message);
   }
+
+  emitMessageUpdated(channelId: string, message: unknown): void {
+    this.server?.to(`channel:${channelId}`).emit('message_updated', message);
+  }
+
+  emitMessageDeleted(channelId: string, message: unknown): void {
+    this.server?.to(`channel:${channelId}`).emit('message_deleted', message);
+  }
 }

@@ -19,6 +19,8 @@ interface SendMessagePayload {
   workspaceId: string;
   channelId: string;
   content: string;
+  messageType?: string;
+  metadata?: Record<string, any>;
 }
 
 interface JoinChannelPayload {
@@ -100,6 +102,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       // ChatService handles permission verification and calls gRPC to stack-chat
       const message = await this.chatService.sendMessage(data.workspaceId, data.channelId, user.userId, {
         content: data.content,
+        messageType: data.messageType,
+        metadata: data.metadata,
       });
 
       const room = `channel:${data.channelId}`;

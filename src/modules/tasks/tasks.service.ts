@@ -38,6 +38,7 @@ import {
   TaskPermissionAction,
   TaskPermissionContext,
 } from '../../policy/task/task-permission.config';
+import { ChannelPermissionResolver } from '../../policy/channel/channel-permission.resolver';
 
 @Injectable()
 export class TasksService {
@@ -58,7 +59,8 @@ export class TasksService {
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
     private readonly notificationsService: NotificationsService,
     private readonly storageService: StorageService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly channelPermissionResolver: ChannelPermissionResolver
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -76,6 +78,22 @@ export class TasksService {
     const hasPermission = canPerformTaskAction(roleConfig.permissions, action, context);
     if (!hasPermission) {
       throw new ForbiddenException(`You don't have permission to perform '${action}' on this task`);
+    }
+  }
+
+  private enforceDynamicChannelAction(
+    channelMember: ChannelMemberEntity,
+    channel: ChannelEntity,
+    action: 'channel:create_task_list' | 'channel:edit_task_item'
+  ) {
+    const roleConfig = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole);
+    const allowed = this.channelPermissionResolver.can(
+      roleConfig?.permissions,
+      action,
+      channel.settings
+    );
+    if (!allowed) {
+      throw new ForbiddenException('You do not have permission to perform this action in this channel');
     }
   }
 
@@ -303,9 +321,10 @@ export class TasksService {
 
   async createTaskList(workspaceId: string, channelId: string, userId: string, dto: CreateTaskListDto) {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
-    await this.getChannelOrFail(channelId, workspaceId);
+    const channel = await this.getChannelOrFail(channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(channelId, workspaceMember.id);
     this.enforceTaskAction(channelMember, 'task:create');
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:create_task_list');
 
     // Calculate next position
     const maxPos = await this.taskListRepository
@@ -464,8 +483,10 @@ export class TasksService {
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const taskList = await this.getTaskListOrFail(taskListId, workspaceId);
+    const channel = await this.getChannelOrFail(taskList.channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(taskList.channelId, workspaceMember.id);
     this.enforceTaskAction(channelMember, 'task:create');
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:edit_task_item');
 
     let reporterMember = workspaceMember;
     if (dto.reporterWorkspaceMemberId && dto.reporterWorkspaceMemberId !== workspaceMember.id) {
@@ -634,12 +655,14 @@ export class TasksService {
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channel = await this.getChannelOrFail(task.channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
     const isOwner = task.createdById === workspaceMember.id;
     const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
 
     this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:edit_task_item');
 
     const statusChanged = dto.status !== undefined && task.status !== dto.status;
 
@@ -734,12 +757,14 @@ export class TasksService {
 
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channel = await this.getChannelOrFail(task.channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
     const isOwner = task.createdById === workspaceMember.id;
     const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
 
     this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:edit_task_item');
 
     const rawExisting = Array.isArray(task.attachments) ? [...task.attachments] : [];
     const count = rawExisting.filter((x) => x && typeof x === 'object').length;
@@ -765,11 +790,13 @@ export class TasksService {
   async deleteTask(workspaceId: string, taskId: string, userId: string): Promise<ResponseItem<{ message: string }>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channel = await this.getChannelOrFail(task.channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
     const isOwner = task.createdById === workspaceMember.id;
 
     this.enforceTaskAction(channelMember, 'task:delete', { isCreator: isOwner });
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:edit_task_item');
 
     const children = await this.taskRepository.find({
       where: { parentTaskId: taskId, deletedAt: IsNull() },
@@ -797,12 +824,14 @@ export class TasksService {
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channel = await this.getChannelOrFail(task.channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
     const isOwner = task.createdById === workspaceMember.id;
     const isAssignee = task.assignees?.some((a) => a.workspaceMemberId === workspaceMember.id);
 
     this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:edit_task_item');
 
     const targetMember = await this.workspaceMemberRepository.findOne({
       where: { id: dto.workspaceMemberId, workspaceId, status: WorkspaceMemberStatusEnum.ACTIVE },
@@ -852,6 +881,7 @@ export class TasksService {
   ): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId);
+    const channel = await this.getChannelOrFail(task.channelId, workspaceId);
     const channelMember = await this.verifyChannelMembership(task.channelId, workspaceMember.id);
 
     const isOwner = task.createdById === workspaceMember.id;
@@ -862,6 +892,7 @@ export class TasksService {
     if (!isSelf) {
       this.enforceTaskAction(channelMember, 'task:update', { isCreator: isOwner, isAssignee });
     }
+    this.enforceDynamicChannelAction(channelMember, channel, 'channel:edit_task_item');
 
     const assignee = await this.taskAssigneeRepository.findOne({
       where: { taskId, workspaceMemberId: memberId },

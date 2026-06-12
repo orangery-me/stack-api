@@ -25,6 +25,9 @@ export interface MessageResponse {
   createdAt: string;
   channelId: string;
   metadata?: Record<string, any> | string;
+  isPinned?: boolean;
+  pinnedAt?: string;
+  pinnedBy?: string;
 }
 
 export interface GetMessagesRequest {
@@ -38,9 +41,29 @@ export interface GetMessagesResponse {
   hasMore: boolean;
 }
 
+export interface PinMessageRequest {
+  channelId: string;
+  messageId: string;
+  pinnedBy: string;
+}
+
+export interface DeleteMessageRequest {
+  channelId: string;
+  messageId: string;
+  deletedBy: string;
+}
+
+export interface DeleteMessageResponse {
+  id: string;
+  channelId: string;
+}
+
 interface ChatServiceClient {
   sendMessage(data: SendMessageRequest): any;
   getMessages(data: GetMessagesRequest): any;
+  pinMessage(data: PinMessageRequest): any;
+  unpinMessage(data: PinMessageRequest): any;
+  deleteMessage(data: DeleteMessageRequest): any;
 }
 
 @Injectable()
@@ -102,6 +125,20 @@ export class ChatClientService implements OnModuleInit {
     }
   }
 
+  async pinMessage(data: PinMessageRequest): Promise<MessageResponse> {
+    const response = await lastValueFrom<MessageResponse>(this.chatService.pinMessage(data));
+    return this.normalizeMessageResponse(response);
+  }
+
+  async unpinMessage(data: PinMessageRequest): Promise<MessageResponse> {
+    const response = await lastValueFrom<MessageResponse>(this.chatService.unpinMessage(data));
+    return this.normalizeMessageResponse(response);
+  }
+
+  async deleteMessage(data: DeleteMessageRequest): Promise<DeleteMessageResponse> {
+    return lastValueFrom<DeleteMessageResponse>(this.chatService.deleteMessage(data));
+  }
+
   private stringifyMetadata(metadata?: Record<string, any> | string): string {
     if (!metadata) return '';
     return typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
@@ -115,5 +152,12 @@ export class ChatClientService implements OnModuleInit {
     } catch {
       return undefined;
     }
+  }
+
+  private normalizeMessageResponse(message: MessageResponse): MessageResponse {
+    return {
+      ...message,
+      metadata: this.parseMetadata(message.metadata),
+    };
   }
 }

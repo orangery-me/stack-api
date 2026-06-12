@@ -5,6 +5,9 @@ package chat;
 service ChatService {
   rpc SendMessage (SendMessageRequest) returns (SendMessageResponse);
   rpc GetMessages (GetMessagesRequest) returns (GetMessagesResponse);
+  rpc PinMessage (PinMessageRequest) returns (MessageItem);
+  rpc UnpinMessage (PinMessageRequest) returns (MessageItem);
+  rpc DeleteMessage (DeleteMessageRequest) returns (DeleteMessageResponse);
 }
 
 message SendMessageRequest {
@@ -30,6 +33,26 @@ message SendMessageResponse {
   string created_at = 8;
   string channel_id = 9;
   string metadata = 10;
+  bool is_pinned = 11;
+  string pinned_at = 12;
+  string pinned_by = 13;
+}
+
+message PinMessageRequest {
+  string channel_id = 1;
+  string message_id = 2;
+  string pinned_by = 3;
+}
+
+message DeleteMessageRequest {
+  string channel_id = 1;
+  string message_id = 2;
+  string deleted_by = 3;
+}
+
+message DeleteMessageResponse {
+  string id = 1;
+  string channel_id = 2;
 }
 
 message GetMessagesRequest {
@@ -54,4 +77,7 @@ message MessageItem {
   string created_at = 8;
   string channel_id = 9;
   string metadata = 10;
+  bool is_pinned = 11;
+  string pinned_at = 12;
+  string pinned_by = 13;
 }

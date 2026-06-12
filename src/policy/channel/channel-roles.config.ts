@@ -28,7 +28,9 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
         'channel:invite_member': true,
         'channel:post_message': true,
         'channel:pin_message': true,
-        'channel:create_thread': true,
+        'channel:delete_message': true,
+        'channel:create_task_list': true,
+        'channel:edit_task_item': true,
         'message:create': true,
         'message:view': true,
         'task:create': true,
@@ -42,4 +44,3 @@ export const DEFAULT_CHANNEL_ROLES: ChannelRoleConfig[] = [
     },
   },
 ];
-

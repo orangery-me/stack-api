@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
 
 export class ShareCanvasWithChannelDto {
   @ApiProperty({
@@ -14,4 +14,12 @@ export class ShareCanvasWithChannelDto {
   })
   @IsIn(['viewer', 'editor'])
   role: 'viewer' | 'editor';
+
+  @ApiProperty({
+    description: 'Skip posting the canvas share system message',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  suppressSystemMessage?: boolean;
 }

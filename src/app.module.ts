@@ -100,6 +100,10 @@ import * as Joi from 'joi';
         // Canvas Collab Server
         CANVAS_COLLAB_URL: Joi.string().default('http://localhost:1235'),
         CANVAS_COLLAB_SECRET: Joi.string().optional().default(''),
+        CANVAS_COLLAB_SESSION_SECRET: Joi.string()
+          .min(32)
+          .default('dev-canvas-collab-session-secret-change-me'),
+        CANVAS_COLLAB_SESSION_TTL: Joi.string().default('10m'),
         INTERNAL_SECRET: Joi.string().allow('').optional().default(''),
 
         // GCS uploads (optional; sensible defaults applied in StorageService when unset)

@@ -27,7 +27,11 @@ export class ChannelPermissionResolver {
       return false;
     }
 
-    if (!this.permissionService.hasAction(permissions, action)) {
+    const hasConfiguredAction = this.permissionService.hasAction(permissions, action);
+    const hasFallbackAction = actionConfig.fallbackActions?.some((fallbackAction) =>
+      this.permissionService.hasAction(permissions, fallbackAction)
+    );
+    if (!hasConfiguredAction && !hasFallbackAction) {
       return false;
     }
 

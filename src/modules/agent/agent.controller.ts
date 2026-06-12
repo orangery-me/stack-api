@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { ResponseItem } from '@app/common/dtos';
@@ -78,26 +78,30 @@ export class AgentController {
 
   @Get('sessions/active')
   @ApiOperation({ summary: 'Get or create the active AI chat session for the current user' })
-  async getOrCreateActiveSession(@Req() req: Request) {
+  async getOrCreateActiveSession(@Req() req: Request, @Query('scopeType') scopeType?: string, @Query('scopeId') scopeId?: string) {
     const userId = String((req.user as any).userId);
-    const session = await this.agentService.getOrCreateActiveSession(userId);
+    const session = await this.agentService.getOrCreateActiveSession(userId, this.normalizeSessionScope(scopeType, scopeId));
     return new ResponseItem(session, 'Active session retrieved');
   }
 
   @Get('sessions')
   @ApiOperation({ summary: 'List all AI chat sessions for the current user' })
-  async listSessions(@Req() req: Request) {
+  async listSessions(@Req() req: Request, @Query('scopeType') scopeType?: string, @Query('scopeId') scopeId?: string) {
     const userId = String((req.user as any).userId);
-    const sessions = await this.agentService.listSessions(userId);
+    const sessions = await this.agentService.listSessions(userId, this.normalizeSessionScope(scopeType, scopeId));
     return new ResponseItem(sessions, 'Sessions retrieved');
   }
 
   @Post('sessions')
   @ApiOperation({ summary: 'Create a new AI chat session (archives current active)' })
-  @ApiBody({ schema: { properties: { title: { type: 'string' } } } })
-  async createSession(@Req() req: Request, @Body() body: { title?: string }) {
+  @ApiBody({ schema: { properties: { title: { type: 'string' }, scopeType: { type: 'string' }, scopeId: { type: 'string' } } } })
+  async createSession(@Req() req: Request, @Body() body: { title?: string; scopeType?: string; scopeId?: string }) {
     const userId = String((req.user as any).userId);
-    const session = await this.agentService.createSession(userId, body.title);
+    const session = await this.agentService.createSession(
+      userId,
+      body.title,
+      this.normalizeSessionScope(body.scopeType, body.scopeId)
+    );
     return new ResponseItem(session, 'Session created');
   }
 
@@ -110,10 +114,18 @@ export class AgentController {
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
     @Query('page') page = 1,
-    @Query('size') size = 50
+    @Query('size') size = 50,
+    @Query('scopeType') scopeType?: string,
+    @Query('scopeId') scopeId?: string
   ) {
     const userId = String((req.user as any).userId);
-    const result = await this.agentService.getSessionMessages(userId, sessionId, Number(page), Number(size));
+    const result = await this.agentService.getSessionMessages(
+      userId,
+      sessionId,
+      Number(page),
+      Number(size),
+      this.normalizeSessionScope(scopeType, scopeId)
+    );
     return new ResponseItem(result, 'Messages retrieved');
   }
 
@@ -406,5 +418,17 @@ export class AgentController {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.flushHeaders();
+  }
+
+  private normalizeSessionScope(scopeType?: string, scopeId?: string) {
+    const normalizedType = scopeType === 'canvas' ? 'canvas' : 'general';
+    const normalizedId = normalizedType === 'canvas' ? scopeId?.trim() : undefined;
+    if (normalizedType === 'canvas' && !normalizedId) {
+      throw new BadRequestException('scopeId is required for canvas sessions');
+    }
+    return {
+      scopeType: normalizedType,
+      ...(normalizedId ? { scopeId: normalizedId } : {}),
+    };
   }
 }

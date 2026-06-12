@@ -18,6 +18,7 @@ import {
   ChatMessageDto,
   SessionDto,
   MessageListDto,
+  SessionScopeDto,
 } from '../agent-client/agent-client.service';
 
 @Injectable()
@@ -40,20 +41,26 @@ export class AgentService {
     return this.agentClientService.updateSession(userId, sessionId, title);
   }
 
-  async getOrCreateActiveSession(userId: string): Promise<SessionDto> {
-    return this.agentClientService.getOrCreateActiveSession(userId);
+  async getOrCreateActiveSession(userId: string, scope?: SessionScopeDto): Promise<SessionDto> {
+    return this.agentClientService.getOrCreateActiveSession(userId, scope);
   }
 
-  async listSessions(userId: string): Promise<SessionDto[]> {
-    return this.agentClientService.listSessions(userId);
+  async listSessions(userId: string, scope?: SessionScopeDto): Promise<SessionDto[]> {
+    return this.agentClientService.listSessions(userId, scope);
   }
 
-  async createSession(userId: string, title?: string): Promise<SessionDto> {
-    return this.agentClientService.createSession(userId, title);
+  async createSession(userId: string, title?: string, scope?: SessionScopeDto): Promise<SessionDto> {
+    return this.agentClientService.createSession(userId, title, scope);
   }
 
-  async getSessionMessages(userId: string, sessionId: string, page: number, size: number): Promise<MessageListDto> {
-    return this.agentClientService.getSessionMessages(userId, sessionId, page, size);
+  async getSessionMessages(
+    userId: string,
+    sessionId: string,
+    page: number,
+    size: number,
+    scope?: SessionScopeDto
+  ): Promise<MessageListDto> {
+    return this.agentClientService.getSessionMessages(userId, sessionId, page, size, scope);
   }
 
   async updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Promise<ChatMessageDto> {

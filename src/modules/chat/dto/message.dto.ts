@@ -27,6 +27,15 @@ export class MessageDto {
 
   @ApiProperty({ description: 'Channel ID' })
   channelId: string;
+
+  @ApiProperty({ description: 'Whether the message is pinned', required: false })
+  isPinned?: boolean;
+
+  @ApiProperty({ description: 'Pin timestamp', nullable: true, required: false })
+  pinnedAt?: string | null;
+
+  @ApiProperty({ description: 'User ID that pinned the message', nullable: true, required: false })
+  pinnedBy?: string | null;
 }
 
 export class MessagesResponseDto {
