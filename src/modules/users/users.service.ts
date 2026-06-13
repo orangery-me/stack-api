@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from '@UsersModule/dto/create-user.dto';
 import { GetUsersDto } from '@UsersModule/dto/get-users.dto';
 import { UpdateUserDto } from '@UsersModule/dto/update-user.dto';
-import { UserEntity } from '@app/entities';
+import { UserEntity, WorkspaceMemberEntity } from '@app/entities';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ProfileDto } from './dto/profile.dto';
 import { UserDto } from './dto/user.dto';
@@ -25,7 +25,10 @@ export class UsersService {
     private readonly configService: ConfigService,
 
     @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>
+    private readonly userRepository: Repository<UserEntity>,
+
+    @InjectRepository(WorkspaceMemberEntity)
+    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>
   ) {}
 
   async create(avatar, params: CreateUserDto): Promise<ResponseItem<UserDto>> {
@@ -155,9 +158,23 @@ export class UsersService {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new BadRequestException('User does not exist');
 
+    // Kiểm tra xem user có phải là owner hoặc admin của ít nhất 1 workspace không
+    const hasAdminRole = await this.workspaceMemberRepository.createQueryBuilder('member')
+      .leftJoinAndSelect('member.role', 'role')
+      .where('member.userId = :id', { id })
+      .andWhere('member.status = :status', { status: 'active' })
+      .andWhere('role.name IN (:...roles)', { roles: ['owner', 'admin'] })
+      .getCount();
+
+    const isWorkspaceAdminOrOwner = hasAdminRole > 0;
+
     const result = plainToClass(
       ProfileDto,
-      { ...user, avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null },
+      { 
+        ...user, 
+        avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null,
+        isWorkspaceAdminOrOwner
+      },
       { excludeExtraneousValues: true }
     );
 

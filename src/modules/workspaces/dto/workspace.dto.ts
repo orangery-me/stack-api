@@ -56,4 +56,10 @@ export class WorkspaceDto {
     example: '2024-01-01T00:00:00.000Z',
   })
   createdAt: Date;
+
+  @ApiPropertyOptional({
+    description: 'Vai trò của user hiện tại trong workspace',
+    example: 'admin',
+  })
+  currentUserRole?: string;
 }
