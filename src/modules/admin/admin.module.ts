@@ -7,6 +7,7 @@ import { CanvasEntity } from '@app/entities/canvas/canvas.entity';
 import { ChannelEntity } from '@app/entities/channel/channel.entity';
 import { WorkspaceEntity } from '@app/entities/workspace/workspace.entity';
 import { WorkspaceMemberEntity } from '@app/entities/workspace/workspace-member.entity';
+import { WorkspaceRoleEntity } from '@app/entities/workspace/workspace-role.entity';
 import { AuditLog } from '../audit-log/entities/audit-log.entity';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
@@ -20,9 +21,13 @@ import { AdminContentController } from './content/admin-content.controller';
 import { AdminContentService } from './content/admin-content.service';
 import { AdminCommunicationsController } from './communications/admin-communications.controller';
 import { AdminCommunicationsService } from './communications/admin-communications.service';
+import { AdminWorkspaceRolesController } from './workspaces/admin-workspace-roles.controller';
+import { AdminWorkspaceRolesService } from './workspaces/admin-workspace-roles.service';
+import { SystemLatencyModule } from '../system-latency/system-latency.module';
 
 @Module({
   imports: [
+    SystemLatencyModule,
     TypeOrmModule.forFeature([
       UserEntity,
       TaskEntity,
@@ -31,6 +36,7 @@ import { AdminCommunicationsService } from './communications/admin-communication
       ChannelEntity,
       WorkspaceEntity,
       WorkspaceMemberEntity,
+      WorkspaceRoleEntity,
       AuditLog,
     ]),
   ],
@@ -41,6 +47,7 @@ import { AdminCommunicationsService } from './communications/admin-communication
     AdminAnalyticsController,
     AdminContentController,
     AdminCommunicationsController,
+    AdminWorkspaceRolesController,
   ],
   providers: [
     AdminService,
@@ -49,6 +56,7 @@ import { AdminCommunicationsService } from './communications/admin-communication
     AdminAnalyticsService,
     AdminContentService,
     AdminCommunicationsService,
+    AdminWorkspaceRolesService,
   ],
 })
 export class AdminModule {}

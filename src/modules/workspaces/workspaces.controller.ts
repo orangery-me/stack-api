@@ -1,6 +1,6 @@
 import { ResponseItem } from '@app/common/dtos';
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Req, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { WorkspacesService } from './workspaces.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -120,6 +120,9 @@ export class WorkspacesController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get members of a workspace' })
   @ApiParam({ name: 'id', description: 'Workspace ID' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'take', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiResponse({
     status: 200,
     description: 'Workspace members fetched successfully',
@@ -129,8 +132,9 @@ export class WorkspacesController {
   @ApiResponse({ status: 404, description: 'Workspace not found' })
   async getWorkspaceMembers(
     @Req() request,
-    @Param('id') workspaceId: string
-  ): Promise<ResponseItem<WorkspaceMemberDto[]>> {
-    return this.workspacesService.getWorkspaceMembers(workspaceId, request.user.userId);
+    @Param('id') workspaceId: string,
+    @Query() query: { page?: number; take?: number; search?: string }
+  ): Promise<any> {
+    return this.workspacesService.getWorkspaceMembers(workspaceId, request.user.userId, query);
   }
 }

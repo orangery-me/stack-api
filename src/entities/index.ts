@@ -16,3 +16,4 @@ export * from './notification/notification-outbox.entity';
 export * from './task/task-list.entity';
 export * from './task/task.entity';
 export * from './task/task-assignee.entity';
+export * from './system/system-latency.entity';
