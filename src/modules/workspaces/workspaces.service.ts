@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import * as crypto from 'crypto';
-import { ResponseItem } from '@app/common/dtos';
+import { ResponseItem, PageMetaDto, ResponsePaginate } from '@app/common/dtos';
 import { UserEntity } from '@app/entities';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity, WorkspaceInviteEntity } from '@app/entities';
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum, WorkspacePlanEnum, UserRoleEnum } from '@Constant/enums';
@@ -469,7 +469,11 @@ export class WorkspacesService {
     return new ResponseItem<WorkspaceDto>(dto, 'Workspace fetched successfully');
   }
 
-  async getWorkspaceMembers(workspaceId: string, requesterUserId: string): Promise<ResponseItem<WorkspaceMemberDto[]>> {
+  async getWorkspaceMembers(
+    workspaceId: string,
+    requesterUserId: string,
+    query?: { page?: number; take?: number; search?: string }
+  ): Promise<any> {
     // Verify workspace exists
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
@@ -490,12 +494,29 @@ export class WorkspacesService {
       }
     }
 
-    // Get all members with relations
-    const members = await this.workspaceMemberRepository.find({
-      where: { workspaceId },
-      relations: ['user', 'role'],
-      order: { joinedAt: 'ASC' },
-    });
+    const page = Number(query?.page) || 1;
+    const take = Number(query?.take) || 10;
+    const skip = (page - 1) * take;
+    const search = query?.search || '';
+
+    const qb = this.workspaceMemberRepository.createQueryBuilder('member')
+      .leftJoinAndSelect('member.user', 'user')
+      .leftJoinAndSelect('member.role', 'role')
+      .where('member.workspaceId = :workspaceId', { workspaceId });
+
+    if (search) {
+      qb.andWhere('(LOWER(user.name) LIKE :search OR LOWER(user.email) LIKE :search)', {
+        search: `%${search.toLowerCase()}%`,
+      });
+    }
+
+    qb.orderBy('member.joinedAt', 'ASC');
+
+    const total = await qb.getCount();
+    const members = await qb
+      .skip(skip)
+      .take(take)
+      .getMany();
 
     const memberDtos: WorkspaceMemberDto[] = members.map((member) => ({
       id: member.id,
@@ -511,7 +532,12 @@ export class WorkspacesService {
       joinedAt: member.joinedAt,
     }));
 
-    return new ResponseItem<WorkspaceMemberDto[]>(memberDtos, 'Workspace members fetched successfully');
+    const pageMetaDto = new PageMetaDto({
+      itemCount: total,
+      pageOptionsDto: { page, take, skip } as any,
+    });
+
+    return new ResponsePaginate(memberDtos, pageMetaDto, 'Workspace members fetched successfully');
   }
 
   async getUserWorkspaces(userId: string): Promise<ResponseItem<WorkspaceDto[]>> {
@@ -533,7 +559,7 @@ export class WorkspacesService {
     // Normal user — get only their workspaces
     const members = await this.workspaceMemberRepository.find({
       where: { userId, status: WorkspaceMemberStatusEnum.ACTIVE },
-      relations: ['workspace', 'workspace.owner'],
+      relations: ['workspace', 'workspace.owner', 'role'],
       order: { joinedAt: 'DESC' },
     });
 
@@ -550,7 +576,8 @@ export class WorkspacesService {
         plan: member.workspace.plan as WorkspacePlanEnum,
         settings: member.workspace.settings,
         createdAt: member.workspace.createdAt,
-      }));
+        currentUserRole: member.role?.name,
+      } as any));
 
     return new ResponseItem<WorkspaceDto[]>(workspaceDtos, 'Workspaces fetched successfully');
   }

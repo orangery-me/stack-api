@@ -29,4 +29,7 @@ export class ProfileDto {
 
   @Expose()
   avatar: string;
+
+  @Expose()
+  isWorkspaceAdminOrOwner?: boolean;
 }

@@ -26,6 +26,8 @@ import { AdminModule } from './modules/admin/admin.module';
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { AuditLogInterceptor } from './modules/audit-log/audit-log.interceptor';
+import { SystemLatencyModule } from './modules/system-latency/system-latency.module';
+import { LatencyInterceptor } from './modules/system-latency/latency.interceptor';
 import * as Joi from 'joi';
 
 @Module({
@@ -150,6 +152,7 @@ import * as Joi from 'joi';
     AdminModule,
     SystemSettingsModule,
     AuditLogModule,
+    SystemLatencyModule,
   ],
   providers: [
     {
@@ -159,6 +162,10 @@ import * as Joi from 'joi';
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LatencyInterceptor,
     },
   ],
 })
