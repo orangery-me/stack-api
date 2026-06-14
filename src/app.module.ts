@@ -124,6 +124,7 @@ import * as Joi from 'joi';
         LIVEKIT_API_KEY: Joi.string().optional().default('devkey'),
         LIVEKIT_API_SECRET: Joi.string().optional().default('secret'),
         LIVEKIT_URL: Joi.string().optional().default('ws://localhost:7880'),
+        LIVEKIT_PUBLIC_URL: Joi.string().allow('').optional().default(''),
 
         // Realtime subtitles
         WHISPER_SERVICE_URL: Joi.string().allow('').optional().default(''),

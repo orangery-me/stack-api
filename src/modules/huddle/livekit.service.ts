@@ -66,4 +66,8 @@ export class LiveKitService {
   getWebSocketUrl(): string {
     return this.configService.get<string>('LIVEKIT_URL', 'ws://localhost:7880');
   }
+
+  getPublicWebSocketUrl(): string {
+    return this.configService.get<string>('LIVEKIT_PUBLIC_URL') || this.getWebSocketUrl();
+  }
 }

@@ -90,6 +90,7 @@ export class HuddleService {
 
     const token = await this.liveKitService.generateToken(roomName, userId, userName);
     const livekitUrl = this.liveKitService.getWebSocketUrl();
+    const publicLivekitUrl = this.liveKitService.getPublicWebSocketUrl();
     await this.startSubtitleSession(call, livekitUrl);
 
     await this.sendHuddleSystemMessage({
@@ -115,7 +116,7 @@ export class HuddleService {
       callId: call.id,
       livekitRoomName: roomName,
       livekitToken: token,
-      livekitUrl,
+      livekitUrl: publicLivekitUrl,
       participantCount: 1,
     };
   }
@@ -182,7 +183,7 @@ export class HuddleService {
         callId: call.id,
         livekitRoomName: call.livekitRoomName,
         livekitToken: await this.liveKitService.generateToken(call.livekitRoomName, userId, userName),
-        livekitUrl: this.liveKitService.getWebSocketUrl(),
+        livekitUrl: this.liveKitService.getPublicWebSocketUrl(),
         participantCount: await this.participantRepo.count({
           where: { callId: call.id, status: HuddleParticipantStatus.ACTIVE },
         }),
@@ -216,7 +217,7 @@ export class HuddleService {
       callId: call.id,
       livekitRoomName: call.livekitRoomName,
       livekitToken: token,
-      livekitUrl: this.liveKitService.getWebSocketUrl(),
+      livekitUrl: this.liveKitService.getPublicWebSocketUrl(),
       participantCount,
     };
   }
@@ -364,7 +365,7 @@ export class HuddleService {
       callId: call.id,
       livekitRoomName: call.livekitRoomName,
       livekitToken: await this.liveKitService.generateToken(call.livekitRoomName, userId, userName),
-      livekitUrl: this.liveKitService.getWebSocketUrl(),
+      livekitUrl: this.liveKitService.getPublicWebSocketUrl(),
       participantCount,
     };
   }
