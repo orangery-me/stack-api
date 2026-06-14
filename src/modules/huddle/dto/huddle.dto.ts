@@ -1,13 +1,33 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class CreateHuddleDto {}
+export class CreateHuddleDto {
+  @ApiProperty({ required: false, description: 'Initial microphone enabled state' })
+  @IsOptional()
+  @IsBoolean()
+  micEnabled?: boolean;
+
+  @ApiProperty({ required: false, description: 'Initial camera enabled state' })
+  @IsOptional()
+  @IsBoolean()
+  cameraEnabled?: boolean;
+}
 
 export class JoinHuddleDto {
   @ApiProperty({ description: 'Unique client session ID for multi-device detection' })
   @IsString()
   @IsNotEmpty()
   sessionId: string;
+
+  @ApiProperty({ required: false, description: 'Initial microphone enabled state' })
+  @IsOptional()
+  @IsBoolean()
+  micEnabled?: boolean;
+
+  @ApiProperty({ required: false, description: 'Initial camera enabled state' })
+  @IsOptional()
+  @IsBoolean()
+  cameraEnabled?: boolean;
 }
 
 export class UpdateHuddleStateDto {

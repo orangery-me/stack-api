@@ -14,9 +14,11 @@ import { HuddleParticipant } from './entities/huddle-participant.entity';
 import { HuddleCallStatus, HuddleParticipantStatus } from './entities/huddle.enums';
 import { LiveKitService } from './livekit.service';
 import {
+  CreateHuddleDto,
   HuddleJoinResponse,
   HuddleStatusResponse,
   HuddleCallResponse,
+  JoinHuddleDto,
   TransferDeviceDto,
 } from './dto/huddle.dto';
 import { ChannelEntity } from '@app/entities/channel/channel.entity';
@@ -26,6 +28,7 @@ import { ChatClientService } from '../chat-client/chat-client.service';
 import { ChatGateway } from '../ws/chat.gateway';
 import { SubtitleClientService } from '../subtitle/subtitle-client.service';
 import { SubtitleService } from '../subtitle/subtitle.service';
+import { HuddleGateway } from './huddle.gateway';
 
 @Injectable()
 export class HuddleService {
@@ -43,13 +46,19 @@ export class HuddleService {
     private readonly liveKitService: LiveKitService,
     private readonly chatClientService: ChatClientService,
     private readonly chatGateway: ChatGateway,
+    private readonly huddleGateway: HuddleGateway,
     @Inject(forwardRef(() => SubtitleClientService))
     private readonly subtitleClientService: SubtitleClientService,
     @Inject(forwardRef(() => SubtitleService))
     private readonly subtitleService: SubtitleService,
   ) {}
 
-  async createHuddle(channelId: string, userId: string, userName: string): Promise<HuddleJoinResponse> {
+  async createHuddle(
+    channelId: string,
+    userId: string,
+    userName: string,
+    dto: CreateHuddleDto = {},
+  ): Promise<HuddleJoinResponse> {
     const channel = await this.channelRepo.findOne({ where: { id: channelId } });
     if (!channel) {
       throw new NotFoundException('Channel not found');
@@ -82,8 +91,8 @@ export class HuddleService {
       callId: call.id,
       userId,
       sessionId: `session_${userId}_${Date.now()}`,
-      micEnabled: true,
-      cameraEnabled: true,
+      micEnabled: dto.micEnabled ?? true,
+      cameraEnabled: dto.cameraEnabled ?? true,
       status: HuddleParticipantStatus.ACTIVE,
     });
     await this.participantRepo.save(participant);
@@ -111,6 +120,13 @@ export class HuddleService {
     });
 
     this.logger.log(`Huddle created: call=${call.id} channel=${channelId} user=${userId}`);
+    this.huddleGateway.emitToChannel(channelId, 'huddle:started', {
+      call_id: call.id,
+      channel_id: channelId,
+      participant_count: 1,
+      started_at: call.startedAt.toISOString(),
+      created_by: { id: userId, displayName: userName },
+    });
 
     return {
       callId: call.id,
@@ -154,7 +170,13 @@ export class HuddleService {
     };
   }
 
-  async joinHuddle(channelId: string, userId: string, userName: string, sessionId: string): Promise<HuddleJoinResponse> {
+  async joinHuddle(
+    channelId: string,
+    userId: string,
+    userName: string,
+    sessionId: string,
+    dto: Partial<JoinHuddleDto> = {},
+  ): Promise<HuddleJoinResponse> {
     const channel = await this.channelRepo.findOne({ where: { id: channelId } });
     if (!channel) {
       throw new NotFoundException('Channel not found');
@@ -178,6 +200,19 @@ export class HuddleService {
       where: { callId: call.id, userId, status: HuddleParticipantStatus.ACTIVE },
     });
     if (existingParticipant) {
+      let stateChanged = false;
+      if (dto.micEnabled !== undefined && existingParticipant.micEnabled !== dto.micEnabled) {
+        existingParticipant.micEnabled = dto.micEnabled;
+        stateChanged = true;
+      }
+      if (dto.cameraEnabled !== undefined && existingParticipant.cameraEnabled !== dto.cameraEnabled) {
+        existingParticipant.cameraEnabled = dto.cameraEnabled;
+        stateChanged = true;
+      }
+      if (stateChanged) {
+        await this.participantRepo.save(existingParticipant);
+        await this.emitParticipantStateChanged(channelId, call.id, existingParticipant);
+      }
       await this.startSubtitleSession(call, this.liveKitService.getWebSocketUrl());
       return {
         callId: call.id,
@@ -201,8 +236,8 @@ export class HuddleService {
       callId: call.id,
       userId,
       sessionId,
-      micEnabled: true,
-      cameraEnabled: true,
+      micEnabled: dto.micEnabled ?? true,
+      cameraEnabled: dto.cameraEnabled ?? true,
       status: HuddleParticipantStatus.ACTIVE,
     });
     await this.participantRepo.save(participant);
@@ -212,6 +247,14 @@ export class HuddleService {
     await this.startSubtitleSession(call, this.liveKitService.getWebSocketUrl());
 
     this.logger.log(`User ${userId} joined huddle ${call.id}`);
+    this.huddleGateway.emitToChannel(channelId, 'huddle:participant_joined', {
+      call_id: call.id,
+      channel_id: channelId,
+      user_id: userId,
+      participant_count: participantCount,
+      mic_enabled: participant.micEnabled,
+      camera_enabled: participant.cameraEnabled,
+    });
 
     return {
       callId: call.id,
@@ -277,6 +320,20 @@ export class HuddleService {
           },
         });
       }
+      this.huddleGateway.emitToChannel(channelId, 'huddle:ended', {
+        call_id: call.id,
+        channel_id: channelId,
+        user_id: userId,
+        participant_count: 0,
+        ended_at: call.endedAt?.toISOString(),
+      });
+    } else {
+      this.huddleGateway.emitToChannel(channelId, 'huddle:participant_left', {
+        call_id: call.id,
+        channel_id: channelId,
+        user_id: userId,
+        participant_count: remainingActive,
+      });
     }
 
     return { left: true, callEnded };
@@ -309,6 +366,7 @@ export class HuddleService {
       participant.cameraEnabled = cameraEnabled;
     }
     await this.participantRepo.save(participant);
+    await this.emitParticipantStateChanged(channelId, call.id, participant);
 
     return {
       updated: true,
@@ -402,6 +460,20 @@ export class HuddleService {
         avatarUrl: (call.createdBy as any)?.avatar,
       },
     };
+  }
+
+  private async emitParticipantStateChanged(channelId: string, callId: string, participant: HuddleParticipant): Promise<void> {
+    const participantCount = await this.participantRepo.count({
+      where: { callId, status: HuddleParticipantStatus.ACTIVE },
+    });
+    this.huddleGateway.emitToChannel(channelId, 'huddle:participant_state_changed', {
+      call_id: callId,
+      channel_id: channelId,
+      user_id: participant.userId,
+      participant_count: participantCount,
+      mic_enabled: participant.micEnabled,
+      camera_enabled: participant.cameraEnabled,
+    });
   }
 
   private async startSubtitleSession(call: HuddleCall, livekitUrl: string): Promise<void> {
