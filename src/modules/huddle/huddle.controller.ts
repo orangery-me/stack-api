@@ -41,10 +41,11 @@ export class HuddleController {
   createHuddle(
     @Param('channelId') channelId: string,
     @Req() req: any,
+    @Body() dto: CreateHuddleDto,
   ): Promise<HuddleJoinResponse> {
     const userId = req.user?.userId;
     const userName = req.user?.email || 'Unknown';
-    return this.huddleService.createHuddle(channelId, userId, userName);
+    return this.huddleService.createHuddle(channelId, userId, userName, dto);
   }
 
   @Post('join')
@@ -56,7 +57,7 @@ export class HuddleController {
   ): Promise<HuddleJoinResponse> {
     const userId = req.user?.userId;
     const userName = req.user?.email || 'Unknown';
-    return this.huddleService.joinHuddle(channelId, userId, userName, dto.sessionId);
+    return this.huddleService.joinHuddle(channelId, userId, userName, dto.sessionId, dto);
   }
 
   @Post('leave')
