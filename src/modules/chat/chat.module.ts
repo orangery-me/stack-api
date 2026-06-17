@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ChannelEntity, ChannelMemberEntity, ChannelRoleEntity, WorkspaceMemberEntity, UserEntity } from '@app/entities';
+import {
+  ChannelEntity,
+  ChannelMemberEntity,
+  ChannelRoleEntity,
+  WorkspaceMemberEntity,
+  UserEntity,
+} from '@app/entities';
 import { ChatClientModule } from '../chat-client/chat-client.module';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
@@ -13,7 +19,13 @@ import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ChannelEntity, ChannelMemberEntity, ChannelRoleEntity, WorkspaceMemberEntity, UserEntity]),
+    TypeOrmModule.forFeature([
+      ChannelEntity,
+      ChannelMemberEntity,
+      ChannelRoleEntity,
+      WorkspaceMemberEntity,
+      UserEntity,
+    ]),
     ChatClientModule,
     UsersModule,
     NotificationsModule,

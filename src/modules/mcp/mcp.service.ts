@@ -9,7 +9,7 @@ import { TaskPriority, TaskStatus } from '@app/entities/task/task.entity';
 export class McpService {
   constructor(
     private readonly canvasClient: CanvasClientService,
-    private readonly tasksService: TasksService,
+    private readonly tasksService: TasksService
   ) {}
 
   createServer(): McpServer {
@@ -34,7 +34,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(blocks, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -59,7 +59,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -75,7 +75,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -90,7 +90,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -106,7 +106,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -123,7 +123,17 @@ export class McpService {
         due_date: z.string().optional().describe('Due date in ISO format'),
         assignee_ids: z.array(z.string().uuid()).optional().describe('Workspace member IDs to assign'),
       },
-      async ({ workspace_id, task_list_id, acting_user_id, title, description, status, priority, due_date, assignee_ids }) => {
+      async ({
+        workspace_id,
+        task_list_id,
+        acting_user_id,
+        title,
+        description,
+        status,
+        priority,
+        due_date,
+        assignee_ids,
+      }) => {
         const response = await this.tasksService.createTask(workspace_id, task_list_id, acting_user_id, {
           title,
           description,
@@ -135,7 +145,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(response.data, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -153,7 +163,7 @@ export class McpService {
             priority: z.nativeEnum(TaskPriority).optional(),
             due_date: z.string().optional(),
             assignee_ids: z.array(z.string().uuid()).optional(),
-          }),
+          })
         ),
       },
       async ({ workspace_id, task_list_id, acting_user_id, tasks }) => {
@@ -181,7 +191,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -206,7 +216,7 @@ export class McpService {
               priority: z.nativeEnum(TaskPriority).optional(),
               due_date: z.string().optional(),
               assignee_ids: z.array(z.string().uuid()).optional(),
-            }),
+            })
           )
           .min(1),
       },
@@ -238,12 +248,7 @@ export class McpService {
           };
         });
 
-        const taskListName = await this.buildUniqueTaskListName(
-          workspace_id,
-          channel_id,
-          acting_user_id,
-          list_name,
-        );
+        const taskListName = await this.buildUniqueTaskListName(workspace_id, channel_id, acting_user_id, list_name);
         const createdListResponse = await this.tasksService.createTaskList(workspace_id, channel_id, acting_user_id, {
           name: taskListName,
         });
@@ -253,15 +258,14 @@ export class McpService {
           throw new Error('Could not resolve creator workspace member for default assignment');
         }
 
-        const canvasAttachment =
-          source_canvas_id
-            ? {
-                type: 'canvas' as const,
-                name: (source_canvas_title || 'Source canvas').slice(0, 500),
-                canvasId: source_canvas_id,
-                ...(source_canvas_url ? { url: source_canvas_url.slice(0, 2000) } : {}),
-              }
-            : null;
+        const canvasAttachment = source_canvas_id
+          ? {
+              type: 'canvas' as const,
+              name: (source_canvas_title || 'Source canvas').slice(0, 500),
+              canvasId: source_canvas_id,
+              ...(source_canvas_url ? { url: source_canvas_url.slice(0, 2000) } : {}),
+            }
+          : null;
 
         const results: Array<{ index: number; ok: boolean; task?: unknown; error?: string }> = [];
         for (let index = 0; index < cleanTasks.length; index++) {
@@ -294,7 +298,7 @@ export class McpService {
             },
           ],
         };
-      },
+      }
     );
 
     server.tool(
@@ -310,7 +314,7 @@ export class McpService {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(lists, null, 2) }],
         };
-      },
+      }
     );
 
     server.tool(
@@ -329,12 +333,12 @@ export class McpService {
           acting_user_id,
           query,
           channel_id,
-          limit,
+          limit
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(members, null, 2) }],
         };
-      },
+      }
     );
   }
 
@@ -351,7 +355,7 @@ export class McpService {
     workspaceId: string,
     channelId: string,
     actingUserId: string,
-    desiredName: string,
+    desiredName: string
   ): Promise<string> {
     const baseName = (desiredName.trim() || 'Action items').slice(0, 255);
     const existingLists = await this.tasksService.listTaskListsForMcp(workspaceId, actingUserId, channelId);

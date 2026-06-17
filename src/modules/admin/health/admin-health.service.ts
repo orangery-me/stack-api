@@ -7,7 +7,7 @@ import { AuditLog } from '../../audit-log/entities/audit-log.entity';
 export class AdminHealthService {
   constructor(
     @InjectRepository(AuditLog)
-    private readonly auditLogRepository: Repository<AuditLog>,
+    private readonly auditLogRepository: Repository<AuditLog>
   ) {}
 
   async getHealth() {
@@ -25,7 +25,7 @@ export class AdminHealthService {
   }
 
   async getErrors(period: string = '24h') {
-    const interval = period === '7d' ? "7 days" : "24 hours";
+    const interval = period === '7d' ? '7 days' : '24 hours';
     const data = await this.auditLogRepository
       .createQueryBuilder('log')
       .select('log.action', 'action')
@@ -38,16 +38,16 @@ export class AdminHealthService {
     return {
       period,
       totalErrors: data.reduce((s, r) => s + parseInt(r.count, 10), 0),
-      errors: data.map(r => ({ action: r.action, count: parseInt(r.count, 10) })),
+      errors: data.map((r) => ({ action: r.action, count: parseInt(r.count, 10) })),
     };
   }
 
   async getPerformance(period: string = '7d') {
-    const interval = period === '24h' ? "24 hours" : "7 days";
+    const interval = period === '24h' ? '24 hours' : '7 days';
     const data = await this.auditLogRepository
       .createQueryBuilder('log')
       .select(`DATE_TRUNC('hour', log.createdAt)`, 'hour')
-      .addSelect('AVG((log.metadata->>\'duration\')::numeric)', 'avgDuration')
+      .addSelect("AVG((log.metadata->>'duration')::numeric)", 'avgDuration')
       .addSelect('COUNT(*)', 'count')
       .where(`log.createdAt > NOW() - INTERVAL '${interval}'`)
       .groupBy('hour')
@@ -55,7 +55,7 @@ export class AdminHealthService {
       .getRawMany();
     return {
       period,
-      data: data.map(r => ({
+      data: data.map((r) => ({
         time: r.hour,
         avgDuration: r.avgDuration ? Math.round(parseFloat(r.avgDuration)) : 0,
         requestCount: parseInt(r.count, 10),

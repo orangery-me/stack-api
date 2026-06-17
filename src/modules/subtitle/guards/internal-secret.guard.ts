@@ -8,9 +8,7 @@ export class InternalSecretGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const configuredSecret =
-      this.configService.get<string>('INTERNAL_SECRET') ||
-      this.configService.get<string>('CANVAS_COLLAB_SECRET') ||
-      '';
+      this.configService.get<string>('INTERNAL_SECRET') || this.configService.get<string>('CANVAS_COLLAB_SECRET') || '';
     const providedSecret = request.headers['x-internal-secret'];
 
     if (!configuredSecret || providedSecret !== configuredSecret) {

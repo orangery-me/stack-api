@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity } from '@app/entities';
@@ -17,7 +23,7 @@ export class AdminWorkspaceRolesService {
     private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
-    private readonly workspacePermissionService: WorkspacePermissionService,
+    private readonly workspacePermissionService: WorkspacePermissionService
   ) {}
 
   private validatePermissionsPayload(permissions?: Record<string, any>): void {
@@ -50,13 +56,13 @@ export class AdminWorkspaceRolesService {
     workspaceId: string,
     dto: CreateWorkspaceRoleDto,
     userId: string,
-    userRole: string,
+    userRole: string
   ): Promise<WorkspaceRoleEntity> {
     await this.workspacePermissionService.enforceWorkspaceAction(
       workspaceId,
       userId,
       'workspace:manage_roles',
-      userRole,
+      userRole
     );
     this.validatePermissionsPayload(dto.permissions);
 
@@ -89,7 +95,7 @@ export class AdminWorkspaceRolesService {
     roleId: string,
     dto: UpdateWorkspaceRoleDto,
     userId: string,
-    userRole: string,
+    userRole: string
   ): Promise<WorkspaceRoleEntity> {
     const role = await this.workspaceRoleRepository.findOne({ where: { id: roleId } });
     if (!role) {
@@ -100,7 +106,7 @@ export class AdminWorkspaceRolesService {
       role.workspaceId,
       userId,
       'workspace:manage_roles',
-      userRole,
+      userRole
     );
     this.validatePermissionsPayload(dto.permissions);
 
@@ -153,7 +159,7 @@ export class AdminWorkspaceRolesService {
       role.workspaceId,
       userId,
       'workspace:manage_roles',
-      userRole,
+      userRole
     );
 
     const defaultRoles = [
@@ -173,7 +179,7 @@ export class AdminWorkspaceRolesService {
 
     if (memberCount > 0) {
       throw new ConflictException(
-        'Cannot delete role because it is currently assigned to some members. Please reassign those members first.',
+        'Cannot delete role because it is currently assigned to some members. Please reassign those members first.'
       );
     }
 
@@ -184,7 +190,7 @@ export class AdminWorkspaceRolesService {
     memberId: string,
     roleId: string,
     userId: string,
-    userRole: string,
+    userRole: string
   ): Promise<WorkspaceMemberEntity> {
     const member = await this.workspaceMemberRepository.findOne({
       where: { id: memberId },
@@ -198,7 +204,7 @@ export class AdminWorkspaceRolesService {
       member.workspaceId,
       userId,
       'member:update_role',
-      userRole,
+      userRole
     );
 
     const newRole = await this.workspaceRoleRepository.findOne({
@@ -232,12 +238,7 @@ export class AdminWorkspaceRolesService {
       throw new NotFoundException('Workspace member not found');
     }
 
-    await this.workspacePermissionService.enforceWorkspaceAction(
-      member.workspaceId,
-      userId,
-      'member:remove',
-      userRole,
-    );
+    await this.workspacePermissionService.enforceWorkspaceAction(member.workspaceId, userId, 'member:remove', userRole);
 
     if (member.userId === member.workspace.ownerId) {
       throw new ForbiddenException('Cannot remove the workspace owner');

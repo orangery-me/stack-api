@@ -87,11 +87,7 @@ export class TasksService {
     action: 'channel:create_task_list' | 'channel:edit_task_item'
   ) {
     const roleConfig = DEFAULT_CHANNEL_ROLES.find((r) => r.name === channelMember.memberRole);
-    const allowed = this.channelPermissionResolver.can(
-      roleConfig?.permissions,
-      action,
-      channel.settings
-    );
+    const allowed = this.channelPermissionResolver.can(roleConfig?.permissions, action, channel.settings);
     if (!allowed) {
       throw new ForbiddenException('You do not have permission to perform this action in this channel');
     }

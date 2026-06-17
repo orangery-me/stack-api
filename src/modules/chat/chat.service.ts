@@ -3,7 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 import { Repository } from 'typeorm';
-import { ChannelEntity, ChannelMemberEntity, ChannelRoleEntity, WorkspaceMemberEntity, UserEntity } from '@app/entities';
+import {
+  ChannelEntity,
+  ChannelMemberEntity,
+  ChannelRoleEntity,
+  WorkspaceMemberEntity,
+  UserEntity,
+} from '@app/entities';
 import { WorkspaceMemberStatusEnum } from '@Constant/enums';
 import { ChatClientService } from '../chat-client/chat-client.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -364,7 +370,9 @@ export class ChatService {
       new Set(
         params.mentions
           .map((mention) => mention?.userId)
-          .filter((userId): userId is string => Boolean(userId) && allowedUserIds.has(userId) && userId !== params.actorUserId)
+          .filter(
+            (userId): userId is string => Boolean(userId) && allowedUserIds.has(userId) && userId !== params.actorUserId
+          )
       )
     );
     if (!mentionedUserIds.length) return;
@@ -412,7 +420,10 @@ export class ChatService {
     action: 'channel:post_message' | 'channel:pin_message' | 'channel:delete_message',
     channelSettings?: Record<string, any> | null
   ): Promise<void> {
-    const permissions = await this.getChannelPermissions(channelMember.channelId, channelMember.memberRole as ChannelRoleName);
+    const permissions = await this.getChannelPermissions(
+      channelMember.channelId,
+      channelMember.memberRole as ChannelRoleName
+    );
     const allowed = this.channelPermissionResolver.can(permissions, action, channelSettings);
     if (!allowed) {
       throw new ForbiddenException('You do not have permission to perform this action in this channel');

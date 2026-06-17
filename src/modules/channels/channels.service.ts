@@ -60,7 +60,7 @@ export class ChannelsService {
       workspaceId,
       creatorUserId,
       'channel:create',
-      creatorUserRole,
+      creatorUserRole
     );
 
     const creatorMember = await this.workspaceMemberRepository.findOne({

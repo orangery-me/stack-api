@@ -1,4 +1,16 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { ResponseItem } from '@app/common/dtos';
@@ -78,9 +90,16 @@ export class AgentController {
 
   @Get('sessions/active')
   @ApiOperation({ summary: 'Get or create the active AI chat session for the current user' })
-  async getOrCreateActiveSession(@Req() req: Request, @Query('scopeType') scopeType?: string, @Query('scopeId') scopeId?: string) {
+  async getOrCreateActiveSession(
+    @Req() req: Request,
+    @Query('scopeType') scopeType?: string,
+    @Query('scopeId') scopeId?: string
+  ) {
     const userId = String((req.user as any).userId);
-    const session = await this.agentService.getOrCreateActiveSession(userId, this.normalizeSessionScope(scopeType, scopeId));
+    const session = await this.agentService.getOrCreateActiveSession(
+      userId,
+      this.normalizeSessionScope(scopeType, scopeId)
+    );
     return new ResponseItem(session, 'Active session retrieved');
   }
 
@@ -94,7 +113,9 @@ export class AgentController {
 
   @Post('sessions')
   @ApiOperation({ summary: 'Create a new AI chat session (archives current active)' })
-  @ApiBody({ schema: { properties: { title: { type: 'string' }, scopeType: { type: 'string' }, scopeId: { type: 'string' } } } })
+  @ApiBody({
+    schema: { properties: { title: { type: 'string' }, scopeType: { type: 'string' }, scopeId: { type: 'string' } } },
+  })
   async createSession(@Req() req: Request, @Body() body: { title?: string; scopeType?: string; scopeId?: string }) {
     const userId = String((req.user as any).userId);
     const session = await this.agentService.createSession(
@@ -345,7 +366,7 @@ export class AgentController {
       provider?: string;
       model?: string;
     },
-    @Res() res: Response,
+    @Res() res: Response
   ): Promise<void> {
     const userId = String((req.user as any).userId);
     this.setSSEHeaders(res);
@@ -396,7 +417,7 @@ export class AgentController {
       taskListId?: string;
       actionName: string;
       actionArgsJson: string;
-    },
+    }
   ): Promise<ResponseItem<{ ok: boolean; resultJson?: string; error?: string }>> {
     const userId = String((req.user as any).userId);
     const result = await this.agentService.taskApplyAction({

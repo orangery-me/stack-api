@@ -30,9 +30,7 @@ export class AdminController {
   @ApiQuery({ name: 'period', required: false, enum: ['day', 'week', 'month'] })
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
-  async getUserGrowth(
-    @Query() query: UserGrowthQueryDto,
-  ): Promise<ResponseItem<UserGrowthDto>> {
+  async getUserGrowth(@Query() query: UserGrowthQueryDto): Promise<ResponseItem<UserGrowthDto>> {
     const data = await this.adminService.getUserGrowth(query);
     return new ResponseItem(data, 'User growth fetched successfully');
   }

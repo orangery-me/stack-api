@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuditLogService } from './audit-log.service';
@@ -31,24 +26,26 @@ export class AuditLogInterceptor implements NestInterceptor {
       tap(() => {
         const duration = Date.now() - startTime;
 
-        this.auditLogService.create({
-          userId: user.userId,
-          userName: user.email,
-          action,
-          resourceType: this.resolveResourceType(path),
-          resourceId: request.params?.id,
-          metadata: {
-            method,
-            path,
-            duration,
-            requestBody: this.sanitizeBody(body),
-          },
-          status: 'success',
-          ipAddress: ip,
-        }).catch(() => {
-          // Fail silently — audit logging should never break the main flow
-        });
-      }),
+        this.auditLogService
+          .create({
+            userId: user.userId,
+            userName: user.email,
+            action,
+            resourceType: this.resolveResourceType(path),
+            resourceId: request.params?.id,
+            metadata: {
+              method,
+              path,
+              duration,
+              requestBody: this.sanitizeBody(body),
+            },
+            status: 'success',
+            ipAddress: ip,
+          })
+          .catch(() => {
+            // Fail silently — audit logging should never break the main flow
+          });
+      })
     );
   }
 

@@ -10,7 +10,7 @@ export class AdminContentService {
     @InjectRepository(CanvasEntity)
     private readonly canvasRepository: Repository<CanvasEntity>,
     @InjectRepository(ChannelEntity)
-    private readonly channelRepository: Repository<ChannelEntity>,
+    private readonly channelRepository: Repository<ChannelEntity>
   ) {}
 
   async getCanvases(page: number = 1, size: number = 20) {

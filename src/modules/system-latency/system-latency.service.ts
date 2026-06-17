@@ -7,7 +7,7 @@ import { SystemLatencyEntity } from '@app/entities';
 export class SystemLatencyService {
   constructor(
     @InjectRepository(SystemLatencyEntity)
-    private readonly repository: Repository<SystemLatencyEntity>,
+    private readonly repository: Repository<SystemLatencyEntity>
   ) {}
 
   async record(
@@ -16,7 +16,7 @@ export class SystemLatencyService {
     duration: number,
     statusCode: number,
     ip?: string,
-    userId?: string,
+    userId?: string
   ): Promise<SystemLatencyEntity> {
     const latency = this.repository.create({
       path,

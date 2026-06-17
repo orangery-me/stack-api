@@ -38,7 +38,11 @@ export class LiveKitService {
     return await token.toJwt();
   }
 
-  async generateSubscribeOnlyToken(roomName: string, participantIdentity: string, participantName: string): Promise<string> {
+  async generateSubscribeOnlyToken(
+    roomName: string,
+    participantIdentity: string,
+    participantName: string
+  ): Promise<string> {
     const apiKey = this.configService.get<string>('LIVEKIT_API_KEY');
     const apiSecret = this.configService.get<string>('LIVEKIT_API_SECRET');
 

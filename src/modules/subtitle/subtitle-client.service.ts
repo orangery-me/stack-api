@@ -24,7 +24,9 @@ export class SubtitleClientService {
       return false;
     }
 
-    this.logger.log(`Starting subtitle session call=${payload.callId} room=${payload.livekitRoomName} service=${baseUrl}`);
+    this.logger.log(
+      `Starting subtitle session call=${payload.callId} room=${payload.livekitRoomName} service=${baseUrl}`
+    );
     try {
       await axios.post(
         `${baseUrl.replace(/\/$/, '')}/sessions/start`,
@@ -40,7 +42,7 @@ export class SubtitleClientService {
         {
           timeout: 5000,
           headers: this.internalHeaders(),
-        },
+        }
       );
       this.logger.log(`Subtitle session start request accepted call=${payload.callId}`);
       return true;
@@ -64,7 +66,7 @@ export class SubtitleClientService {
       {
         timeout: 5000,
         headers: this.internalHeaders(),
-      },
+      }
     );
     this.logger.log(`Subtitle session stop request accepted call=${callId}`);
   }

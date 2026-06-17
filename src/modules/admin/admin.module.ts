@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from '@app/entities/user/user.entity';
 import { TaskEntity } from '@app/entities/task/task.entity';
 import { TaskListEntity } from '@app/entities/task/task-list.entity';
+import { TaskAssigneeEntity } from '@app/entities/task/task-assignee.entity';
 import { CanvasEntity } from '@app/entities/canvas/canvas.entity';
 import { ChannelEntity } from '@app/entities/channel/channel.entity';
 import { WorkspaceEntity } from '@app/entities/workspace/workspace.entity';
@@ -23,6 +24,12 @@ import { AdminCommunicationsController } from './communications/admin-communicat
 import { AdminCommunicationsService } from './communications/admin-communications.service';
 import { AdminWorkspaceRolesController } from './workspaces/admin-workspace-roles.controller';
 import { AdminWorkspaceRolesService } from './workspaces/admin-workspace-roles.service';
+import { AdminHuddleController } from './workspaces/admin-huddle.controller';
+import { AdminHuddleService } from './workspaces/admin-huddle.service';
+import { AdminWorkspaceTasksController } from './workspaces/admin-workspace-tasks.controller';
+import { AdminWorkspaceTasksService } from './workspaces/admin-workspace-tasks.service';
+import { HuddleCall } from '../huddle/entities/huddle-call.entity';
+import { HuddleParticipant } from '../huddle/entities/huddle-participant.entity';
 import { SystemLatencyModule } from '../system-latency/system-latency.module';
 import { PermissionService } from '../../policy/permission.service';
 import { WorkspacePermissionService } from '../../policy/workspace/workspace-permission.service';
@@ -34,12 +41,15 @@ import { WorkspacePermissionService } from '../../policy/workspace/workspace-per
       UserEntity,
       TaskEntity,
       TaskListEntity,
+      TaskAssigneeEntity,
       CanvasEntity,
       ChannelEntity,
       WorkspaceEntity,
       WorkspaceMemberEntity,
       WorkspaceRoleEntity,
       AuditLog,
+      HuddleCall,
+      HuddleParticipant,
     ]),
   ],
   controllers: [
@@ -50,6 +60,8 @@ import { WorkspacePermissionService } from '../../policy/workspace/workspace-per
     AdminContentController,
     AdminCommunicationsController,
     AdminWorkspaceRolesController,
+    AdminHuddleController,
+    AdminWorkspaceTasksController,
   ],
   providers: [
     AdminService,
@@ -59,6 +71,8 @@ import { WorkspacePermissionService } from '../../policy/workspace/workspace-per
     AdminContentService,
     AdminCommunicationsService,
     AdminWorkspaceRolesService,
+    AdminHuddleService,
+    AdminWorkspaceTasksService,
     PermissionService,
     WorkspacePermissionService,
   ],

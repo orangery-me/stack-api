@@ -16,12 +16,7 @@ import { SubtitleModule } from '../subtitle/subtitle.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      HuddleCall,
-      HuddleParticipant,
-      ChannelEntity,
-      WorkspaceMemberEntity,
-    ]),
+    TypeOrmModule.forFeature([HuddleCall, HuddleParticipant, ChannelEntity, WorkspaceMemberEntity]),
     ConfigModule,
     AuthModule,
     ChatClientModule,

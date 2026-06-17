@@ -1,10 +1,6 @@
 import { ChannelPermissions } from '../permission.service';
 
-export type TaskPermissionAction =
-  | 'task:create'
-  | 'task:view'
-  | 'task:update'
-  | 'task:delete';
+export type TaskPermissionAction = 'task:create' | 'task:view' | 'task:update' | 'task:delete';
 
 export interface TaskPermissionContext {
   isCreator?: boolean;
@@ -14,7 +10,7 @@ export interface TaskPermissionContext {
 export function canPerformTaskAction(
   permissions: ChannelPermissions | null | undefined,
   action: TaskPermissionAction,
-  context?: TaskPermissionContext,
+  context?: TaskPermissionContext
 ): boolean {
   if (!permissions?.actions) {
     return false;

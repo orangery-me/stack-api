@@ -1,12 +1,4 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
-  OneToMany,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { CanvasEntity } from '@app/entities/canvas/canvas.entity';
 import { HuddleCall } from '../../huddle/entities/huddle-call.entity';
 import { TranscriptSegment } from './transcript-segment.entity';

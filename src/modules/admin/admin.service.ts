@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import * as os from 'os';
 import { UserEntity } from '@app/entities/user/user.entity';
-import { UserRoleEnum, UserStatusEnum } from '@Constant/enums';
+import { UserRoleEnum } from '@Constant/enums';
 import { SystemOverviewDto } from './dto/system-overview.dto';
 import { UserGrowthDto } from './dto/user-growth.dto';
 import { UserGrowthQueryDto } from './dto/stats-query.dto';
@@ -14,7 +14,7 @@ export class AdminService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    private readonly latencyService: SystemLatencyService,
+    private readonly latencyService: SystemLatencyService
   ) {}
 
   async getOverview(): Promise<SystemOverviewDto> {
@@ -31,17 +31,10 @@ export class AdminService {
       where: { createdAt: Between(lastMonth, twentyFourHoursAgo) },
     });
 
-    const usersThisMonth = await this.userRepository.count({
-      where: { createdAt: Between(twentyFourHoursAgo, new Date()) },
-    });
+    const totalUsersChange =
+      usersLastMonth > 0 ? parseFloat((((totalUsers - usersLastMonth) / usersLastMonth) * 100).toFixed(1)) : 0;
 
-    const totalUsersChange = usersLastMonth > 0
-      ? parseFloat((((totalUsers - usersLastMonth) / usersLastMonth) * 100).toFixed(1))
-      : 0;
-
-    const activeUsersChange = totalUsers > 0
-      ? parseFloat(((activeUsers / totalUsers) * 100).toFixed(1))
-      : 0;
+    const activeUsersChange = totalUsers > 0 ? parseFloat(((activeUsers / totalUsers) * 100).toFixed(1)) : 0;
 
     // --- REAL SYSTEM DATA ---
     // 1. CPU Usage
@@ -77,7 +70,7 @@ export class AdminService {
       activeUsersChange,
       activeUsersPeriod: '24h',
       systemUptime,
-      systemUptimeChange: 0.00,
+      systemUptimeChange: 0.0,
       storageUsed,
       storageTotal,
       storageUnit: 'GB',

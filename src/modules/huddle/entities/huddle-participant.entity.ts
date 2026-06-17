@@ -1,11 +1,4 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { UserEntity } from '@app/entities/user/user.entity';
 import { HuddleCall } from './huddle-call.entity';
 import { HuddleParticipantStatus } from './huddle.enums';

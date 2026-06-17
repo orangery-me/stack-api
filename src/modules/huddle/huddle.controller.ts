@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Param,
-  Body,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { HuddleService } from './huddle.service';
@@ -29,10 +20,7 @@ export class HuddleController {
 
   @Get()
   @ApiOperation({ summary: 'Get huddle status for a channel' })
-  getStatus(
-    @Param('channelId') channelId: string,
-    @Req() req: any,
-  ): Promise<HuddleStatusResponse> {
+  getStatus(@Param('channelId') channelId: string, @Req() req: any): Promise<HuddleStatusResponse> {
     return this.huddleService.getStatus(channelId, req.user?.userId);
   }
 
@@ -41,7 +29,7 @@ export class HuddleController {
   createHuddle(
     @Param('channelId') channelId: string,
     @Req() req: any,
-    @Body() dto: CreateHuddleDto,
+    @Body() dto: CreateHuddleDto
   ): Promise<HuddleJoinResponse> {
     const userId = req.user?.userId;
     const userName = req.user?.email || 'Unknown';
@@ -53,7 +41,7 @@ export class HuddleController {
   joinHuddle(
     @Param('channelId') channelId: string,
     @Req() req: any,
-    @Body() dto: JoinHuddleDto,
+    @Body() dto: JoinHuddleDto
   ): Promise<HuddleJoinResponse> {
     const userId = req.user?.userId;
     const userName = req.user?.email || 'Unknown';
@@ -62,10 +50,7 @@ export class HuddleController {
 
   @Post('leave')
   @ApiOperation({ summary: 'Leave the active huddle call' })
-  leaveHuddle(
-    @Param('channelId') channelId: string,
-    @Req() req: any,
-  ): Promise<{ left: boolean; callEnded: boolean }> {
+  leaveHuddle(@Param('channelId') channelId: string, @Req() req: any): Promise<{ left: boolean; callEnded: boolean }> {
     const userId = req.user?.userId;
     return this.huddleService.leaveHuddle(channelId, userId);
   }
@@ -75,7 +60,7 @@ export class HuddleController {
   transferDevice(
     @Param('channelId') channelId: string,
     @Req() req: any,
-    @Body() dto: TransferDeviceDto,
+    @Body() dto: TransferDeviceDto
   ): Promise<HuddleJoinResponse | { transferred: boolean; message: string }> {
     const userId = req.user?.userId;
     const userName = req.user?.email || 'Unknown';
@@ -86,7 +71,7 @@ export class HuddleController {
   @ApiOperation({ summary: 'Refresh LiveKit token' })
   refreshToken(
     @Param('channelId') channelId: string,
-    @Req() req: any,
+    @Req() req: any
   ): Promise<{ livekitToken: string; expiresIn: number }> {
     const userId = req.user?.userId;
     const userName = req.user?.email || 'Unknown';
@@ -98,7 +83,7 @@ export class HuddleController {
   updateState(
     @Param('channelId') channelId: string,
     @Req() req: any,
-    @Body() dto: UpdateHuddleStateDto,
+    @Body() dto: UpdateHuddleStateDto
   ): Promise<{ updated: boolean; micEnabled: boolean; cameraEnabled: boolean }> {
     const userId = req.user?.userId;
     return this.huddleService.updateState(channelId, userId, dto.micEnabled, dto.cameraEnabled);

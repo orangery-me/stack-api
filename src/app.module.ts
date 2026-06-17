@@ -19,7 +19,6 @@ import { CanvasModule } from './modules/canvas/canvas.module';
 import { AgentModule } from './modules/agent/agent.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-import { TasksModule } from './modules/tasks/tasks.module';
 import { HuddleModule } from './modules/huddle/huddle.module';
 import { SubtitleModule } from './modules/subtitle/subtitle.module';
 import { AdminModule } from './modules/admin/admin.module';
@@ -102,9 +101,7 @@ import * as Joi from 'joi';
         // Canvas Collab Server
         CANVAS_COLLAB_URL: Joi.string().default('http://localhost:1235'),
         CANVAS_COLLAB_SECRET: Joi.string().optional().default(''),
-        CANVAS_COLLAB_SESSION_SECRET: Joi.string()
-          .min(32)
-          .default('dev-canvas-collab-session-secret-change-me'),
+        CANVAS_COLLAB_SESSION_SECRET: Joi.string().min(32).default('dev-canvas-collab-session-secret-change-me'),
         CANVAS_COLLAB_SESSION_TTL: Joi.string().default('10m'),
         INTERNAL_SECRET: Joi.string().allow('').optional().default(''),
 
