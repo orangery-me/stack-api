@@ -48,7 +48,7 @@ export class WorkspacesController {
     @Param('id') workspaceId: string,
     @Body() inviteDto: InviteMemberDto
   ): Promise<ResponseItem<{ message: string }>> {
-    return this.workspacesService.inviteMember(workspaceId, request.user.userId, inviteDto);
+    return this.workspacesService.inviteMember(workspaceId, request.user.userId, inviteDto, request.user.role);
   }
 
   @UseGuards(JwtAccessTokenGuard)
@@ -112,7 +112,7 @@ export class WorkspacesController {
   @ApiResponse({ status: 401, description: 'Not authenticated' })
   @ApiResponse({ status: 404, description: 'Workspace not found' })
   async getWorkspaceById(@Req() request, @Param('id') workspaceId: string): Promise<ResponseItem<WorkspaceDto>> {
-    return this.workspacesService.getWorkspaceById(workspaceId, request.user.userId);
+    return this.workspacesService.getWorkspaceById(workspaceId, request.user.userId, request.user.role);
   }
 
   @UseGuards(JwtAccessTokenGuard)
@@ -135,6 +135,6 @@ export class WorkspacesController {
     @Param('id') workspaceId: string,
     @Query() query: { page?: number; take?: number; search?: string }
   ): Promise<any> {
-    return this.workspacesService.getWorkspaceMembers(workspaceId, request.user.userId, query);
+    return this.workspacesService.getWorkspaceMembers(workspaceId, request.user.userId, query, request.user.role);
   }
 }

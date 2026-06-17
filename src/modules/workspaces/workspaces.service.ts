@@ -17,7 +17,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ChannelType } from '../channels/dto/create-channel.dto';
 import { WorkspacePolicy } from '../../policy/workspace/workspace.policy';
 import { DEFAULT_WORKSPACE_ROLES } from '../../policy/workspace/workspace-roles.config';
-import { WorkspacePermissions } from '../../policy/permission.service';
+import { WorkspacePermissionService } from '../../policy/workspace/workspace-permission.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { WorkspaceDto } from './dto/workspace.dto';
@@ -37,6 +37,7 @@ export class WorkspacesService {
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     private readonly workspacePolicy: WorkspacePolicy,
+    private readonly workspacePermissionService: WorkspacePermissionService,
     private readonly channelsService: ChannelsService,
     private readonly notificationsService: NotificationsService
   ) {}
@@ -246,7 +247,8 @@ export class WorkspacesService {
   async inviteMember(
     workspaceId: string,
     inviterUserId: string,
-    inviteDto: InviteMemberDto
+    inviteDto: InviteMemberDto,
+    inviterUserRole?: string
   ): Promise<ResponseItem<{ message: string }>> {
     // Verify workspace exists
     const workspace = await this.workspaceRepository.findOne({
@@ -257,19 +259,22 @@ export class WorkspacesService {
       throw new NotFoundException('Workspace does not exist');
     }
 
-    // Verify inviter is a member and has permission (owner or admin)
-    const inviterMember = await this.workspaceMemberRepository.findOne({
-      where: { userId: inviterUserId, workspaceId },
-      relations: ['role'],
-    });
+    const invitePermissionContext = await this.workspacePermissionService.enforceWorkspaceAction(
+      workspaceId,
+      inviterUserId,
+      'member:invite',
+      inviterUserRole,
+    );
+    let inviterMember = invitePermissionContext.member;
 
     if (!inviterMember) {
-      throw new UnauthorizedException('You are not a member of this workspace');
+      inviterMember = await this.workspaceMemberRepository.findOne({
+        where: { workspaceId, userId: workspace.ownerId, status: WorkspaceMemberStatusEnum.ACTIVE },
+      });
     }
 
-    const inviterRole = inviterMember.role;
-    if (inviterRole.name !== WorkspaceRoleNameEnum.OWNER && inviterRole.name !== WorkspaceRoleNameEnum.ADMIN) {
-      throw new UnauthorizedException('You do not have permission to invite members');
+    if (!inviterMember) {
+      throw new UnauthorizedException('No workspace member is available as the inviter');
     }
 
     // Verify role exists in workspace
@@ -424,47 +429,30 @@ export class WorkspacesService {
     );
   }
 
-  async getWorkspaceById(workspaceId: string, userId: string): Promise<ResponseItem<WorkspaceDto>> {
-    // Admin bypass — no membership check needed
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    const isAdmin = user?.role === UserRoleEnum.ADMIN;
+  async getWorkspaceById(workspaceId: string, userId: string, userRole?: string): Promise<ResponseItem<WorkspaceDto>> {
+    const workspace = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
+    if (!workspace) {
+      throw new NotFoundException('Workspace does not exist');
+    }
 
-    const membership = isAdmin
-      ? await this.workspaceMemberRepository.findOne({
-          where: { workspaceId },
-          relations: ['workspace', 'role'],
-        })
-      : await this.workspaceMemberRepository.findOne({
-          where: { workspaceId, userId },
-          relations: ['workspace', 'role'],
-        });
+    const { member, permissions, isSystemAdmin } = await this.workspacePermissionService.resolveContext(
+      workspaceId,
+      userId,
+      userRole,
+    );
 
-    if (!membership) {
-      if (isAdmin) {
-        // Admin can view workspace metadata even without membership
-        const ws = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
-        if (!ws) throw new NotFoundException('Workspace does not exist');
-        return new ResponseItem<WorkspaceDto>({
-          id: ws.id, name: ws.name, slug: ws.slug,
-          ownerId: ws.ownerId, plan: ws.plan as WorkspacePlanEnum,
-          settings: ws.settings, createdAt: ws.createdAt,
-        } as WorkspaceDto, 'Workspace fetched successfully');
-      }
+    if (!isSystemAdmin && !member) {
       throw new ForbiddenException('You are not a member of this workspace');
     }
 
-    const { workspace, role } = membership;
-
-    let normalizedPermissions: WorkspacePermissions | null = null;
-    if (role?.permissions) {
-      if (role.permissions.actions && typeof role.permissions.actions === 'object') {
-        normalizedPermissions = role.permissions as WorkspacePermissions;
-      }
+    const dto = this.workspacePolicy.map(workspace, permissions);
+    if (!dto) {
+      throw new ForbiddenException('You do not have permission to view this workspace');
     }
 
-    console.log('workspace: ', workspace);
-
-    const dto = this.workspacePolicy.map(workspace, normalizedPermissions);
+    if (member?.role?.name) {
+      dto.currentUserRole = member.role.name;
+    }
 
     return new ResponseItem<WorkspaceDto>(dto, 'Workspace fetched successfully');
   }
@@ -472,7 +460,8 @@ export class WorkspacesService {
   async getWorkspaceMembers(
     workspaceId: string,
     requesterUserId: string,
-    query?: { page?: number; take?: number; search?: string }
+    query?: { page?: number; take?: number; search?: string },
+    requesterUserRole?: string
   ): Promise<any> {
     // Verify workspace exists
     const workspace = await this.workspaceRepository.findOne({
@@ -483,16 +472,12 @@ export class WorkspacesService {
       throw new NotFoundException('Workspace does not exist');
     }
 
-    // Admin bypass — no membership check needed
-    const user = await this.userRepository.findOne({ where: { id: requesterUserId } });
-    if (user?.role !== UserRoleEnum.ADMIN) {
-      const requesterMembership = await this.workspaceMemberRepository.findOne({
-        where: { workspaceId, userId: requesterUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
-      });
-      if (!requesterMembership) {
-        throw new UnauthorizedException('You are not a member of this workspace');
-      }
-    }
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      workspaceId,
+      requesterUserId,
+      'member:view',
+      requesterUserRole,
+    );
 
     const page = Number(query?.page) || 1;
     const take = Number(query?.take) || 10;
@@ -548,10 +533,24 @@ export class WorkspacesService {
         relations: ['owner'],
         order: { createdAt: 'DESC' },
       });
+      const adminCapabilities = this.workspacePermissionService.buildCapabilityMap({
+        actions: {
+          'workspace:*': true,
+          'member:*': true,
+          'channel:*': true,
+        },
+      });
       const workspaceDtos: WorkspaceDto[] = allWorkspaces.map((ws) => ({
-        id: ws.id, name: ws.name, slug: ws.slug,
-        ownerId: ws.ownerId, ownerName: ws.owner?.name, ownerEmail: ws.owner?.email,
-        plan: ws.plan as WorkspacePlanEnum, settings: ws.settings, createdAt: ws.createdAt,
+        id: ws.id,
+        name: ws.name,
+        slug: ws.slug,
+        ownerId: ws.ownerId,
+        ownerName: ws.owner?.name,
+        ownerEmail: ws.owner?.email,
+        plan: ws.plan as WorkspacePlanEnum,
+        settings: ws.settings,
+        createdAt: ws.createdAt,
+        permissions: adminCapabilities,
       }));
       return new ResponseItem<WorkspaceDto[]>(workspaceDtos, 'Workspaces fetched successfully');
     }
@@ -566,18 +565,18 @@ export class WorkspacesService {
     // Filter out members with null workspace and map to DTOs
     const workspaceDtos: WorkspaceDto[] = members
       .filter((member) => member.workspace !== null)
-      .map((member) => ({
-        id: member.workspace.id,
-        name: member.workspace.name,
-        slug: member.workspace.slug,
-        ownerId: member.workspace.ownerId,
-        ownerName: member.workspace.owner?.name,
-        ownerEmail: member.workspace.owner?.email,
-        plan: member.workspace.plan as WorkspacePlanEnum,
-        settings: member.workspace.settings,
-        createdAt: member.workspace.createdAt,
-        currentUserRole: member.role?.name,
-      } as any));
+      .map((member) => {
+        const dto = this.workspacePolicy.map(member.workspace, member.role?.permissions as any);
+        if (!dto) {
+          return null;
+        }
+
+        dto.ownerName = member.workspace.owner?.name;
+        dto.ownerEmail = member.workspace.owner?.email;
+        dto.currentUserRole = member.role?.name;
+        return dto;
+      })
+      .filter((workspace): workspace is WorkspaceDto => workspace !== null);
 
     return new ResponseItem<WorkspaceDto[]>(workspaceDtos, 'Workspaces fetched successfully');
   }

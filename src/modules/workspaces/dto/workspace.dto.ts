@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WorkspacePlanEnum } from '@Constant/enums';
+import { WorkspaceCapabilityMap } from '../../../policy/workspace/workspace-roles.config';
 
 export class WorkspaceDto {
   @ApiProperty({
@@ -62,4 +63,19 @@ export class WorkspaceDto {
     example: 'admin',
   })
   currentUserRole?: string;
+
+  @ApiPropertyOptional({
+    description: 'Workspace capabilities của user hiện tại',
+    example: {
+      canInviteMembers: true,
+      canViewMembers: true,
+      canUpdateMemberRole: true,
+      canRemoveMembers: true,
+      canCreateChannel: true,
+      canViewAllChannels: true,
+      canManageWorkspaceRoles: true,
+      canUpdateWorkspaceSettings: true,
+    },
+  })
+  permissions?: WorkspaceCapabilityMap;
 }

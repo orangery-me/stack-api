@@ -8,7 +8,6 @@ import {
   ChannelRoleEntity,
   WorkspaceEntity,
   WorkspaceMemberEntity,
-  WorkspaceRoleEntity,
 } from '@app/entities';
 import { WorkspaceMemberStatusEnum, WorkspaceRoleNameEnum } from '@Constant/enums';
 import { CreateChannelDto, ChannelType } from './dto/create-channel.dto';
@@ -22,6 +21,7 @@ import { ChannelPermissions } from '../../policy/permission.service';
 import { DEFAULT_CHANNEL_ROLES } from '../../policy/channel/channel-roles.config';
 import { buildChannelSettings, ChannelRoleName } from '../../policy/channel/channel-permission.config';
 import { ChannelPermissionResolver } from '../../policy/channel/channel-permission.resolver';
+import { WorkspacePermissionService } from '../../policy/workspace/workspace-permission.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatService } from '../chat/chat.service';
 
@@ -38,10 +38,9 @@ export class ChannelsService {
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
-    @InjectRepository(WorkspaceRoleEntity)
-    private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
     private readonly channelPolicy: ChannelPolicy,
     private readonly channelPermissionResolver: ChannelPermissionResolver,
+    private readonly workspacePermissionService: WorkspacePermissionService,
     private readonly notificationsService: NotificationsService,
     private readonly chatService: ChatService
   ) {}
@@ -49,12 +48,20 @@ export class ChannelsService {
   async createChannel(
     workspaceId: string,
     creatorUserId: string,
-    dto: CreateChannelDto
+    dto: CreateChannelDto,
+    creatorUserRole?: string
   ): Promise<ResponseItem<ChannelDto>> {
     const workspace = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
     if (!workspace) {
       throw new NotFoundException('Workspace does not exist');
     }
+
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      workspaceId,
+      creatorUserId,
+      'channel:create',
+      creatorUserRole,
+    );
 
     const creatorMember = await this.workspaceMemberRepository.findOne({
       where: { workspaceId, userId: creatorUserId, status: WorkspaceMemberStatusEnum.ACTIVE },
@@ -423,7 +430,7 @@ export class ChannelsService {
     await this.channelMemberRepository.save(channelMember);
   }
 
-  async getAllChannels(workspaceId: string, userId: string): Promise<ResponseItem<ChannelDto[]>> {
+  async getAllChannels(workspaceId: string, userId: string, userRole?: string): Promise<ResponseItem<ChannelDto[]>> {
     // Verify workspace exists
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
@@ -433,20 +440,7 @@ export class ChannelsService {
       throw new NotFoundException('Workspace does not exist');
     }
 
-    // Verify user is a member and has admin/owner role
-    const membership = await this.workspaceMemberRepository.findOne({
-      where: { workspaceId, userId, status: WorkspaceMemberStatusEnum.ACTIVE },
-      relations: ['role'],
-    });
-
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this workspace');
-    }
-
-    const role = membership.role;
-    if (role.name !== WorkspaceRoleNameEnum.OWNER && role.name !== WorkspaceRoleNameEnum.ADMIN) {
-      throw new ForbiddenException('You do not have permission to view all channels');
-    }
+    await this.workspacePermissionService.enforceWorkspaceAction(workspaceId, userId, 'channel:view_all', userRole);
 
     // Get all channels in workspace
     const channels = await this.channelRepository.find({
