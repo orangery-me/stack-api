@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkspaceEntity, WorkspaceRoleEntity, WorkspaceMemberEntity } from '@app/entities';
-import { WorkspaceRoleNameEnum, UserRoleEnum } from '@Constant/enums';
+import { WorkspaceRoleNameEnum } from '@Constant/enums';
 import { CreateWorkspaceRoleDto } from '../dto/create-workspace-role.dto';
 import { UpdateWorkspaceRoleDto } from '../dto/update-workspace-role.dto';
+import { WorkspacePermissionService } from '../../../policy/workspace/workspace-permission.service';
+import { validateWorkspacePermissions } from '../../../policy/workspace/workspace-roles.config';
 
 @Injectable()
 export class AdminWorkspaceRolesService {
@@ -15,28 +17,28 @@ export class AdminWorkspaceRolesService {
     private readonly workspaceRoleRepository: Repository<WorkspaceRoleEntity>,
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
+    private readonly workspacePermissionService: WorkspacePermissionService,
   ) {}
 
-  private async checkWorkspacePermission(workspaceId: string, userId: string, userRole: string): Promise<void> {
-    if (userRole === UserRoleEnum.ADMIN.toString()) return; // System Admin bypass
-
-    const member = await this.workspaceMemberRepository.findOne({
-      where: { workspaceId, userId, status: 'active' },
-      relations: ['role'],
-    });
-
-    if (!member) {
-      throw new ForbiddenException('You are not a member of this workspace');
+  private validatePermissionsPayload(permissions?: Record<string, any>): void {
+    if (permissions === undefined) {
+      return;
     }
 
-    const roleName = member.role?.name?.toLowerCase();
-    if (roleName !== 'owner' && roleName !== 'admin') {
-      throw new ForbiddenException('You do not have permission to manage this workspace');
+    try {
+      validateWorkspacePermissions(permissions);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Invalid workspace permissions');
     }
   }
 
   async getWorkspaceRoles(workspaceId: string, userId: string, userRole: string): Promise<WorkspaceRoleEntity[]> {
-    await this.checkWorkspacePermission(workspaceId, userId, userRole);
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      workspaceId,
+      userId,
+      'workspace:manage_roles',
+      userRole,
+    );
 
     const workspace = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
     if (!workspace) {
@@ -55,7 +57,13 @@ export class AdminWorkspaceRolesService {
     userId: string,
     userRole: string,
   ): Promise<WorkspaceRoleEntity> {
-    await this.checkWorkspacePermission(workspaceId, userId, userRole);
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      workspaceId,
+      userId,
+      'workspace:manage_roles',
+      userRole,
+    );
+    this.validatePermissionsPayload(dto.permissions);
 
     const workspace = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
     if (!workspace) {
@@ -93,7 +101,13 @@ export class AdminWorkspaceRolesService {
       throw new NotFoundException('Workspace role not found');
     }
 
-    await this.checkWorkspacePermission(role.workspaceId, userId, userRole);
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      role.workspaceId,
+      userId,
+      'workspace:manage_roles',
+      userRole,
+    );
+    this.validatePermissionsPayload(dto.permissions);
 
     const defaultRoles = [
       WorkspaceRoleNameEnum.OWNER.toString(),
@@ -102,6 +116,10 @@ export class AdminWorkspaceRolesService {
     ];
 
     const isDefaultRole = defaultRoles.includes(role.name);
+
+    if (role.name === WorkspaceRoleNameEnum.OWNER.toString() && dto.permissions !== undefined) {
+      throw new ForbiddenException('Cannot change permissions of the owner role');
+    }
 
     if (dto.name && dto.name !== role.name) {
       if (isDefaultRole) {
@@ -136,7 +154,12 @@ export class AdminWorkspaceRolesService {
       throw new NotFoundException('Workspace role not found');
     }
 
-    await this.checkWorkspacePermission(role.workspaceId, userId, userRole);
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      role.workspaceId,
+      userId,
+      'workspace:manage_roles',
+      userRole,
+    );
 
     const defaultRoles = [
       WorkspaceRoleNameEnum.OWNER.toString(),
@@ -176,7 +199,12 @@ export class AdminWorkspaceRolesService {
       throw new NotFoundException('Workspace member not found');
     }
 
-    await this.checkWorkspacePermission(member.workspaceId, userId, userRole);
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      member.workspaceId,
+      userId,
+      'member:update_role',
+      userRole,
+    );
 
     const newRole = await this.workspaceRoleRepository.findOne({
       where: { id: roleId, workspaceId: member.workspaceId },

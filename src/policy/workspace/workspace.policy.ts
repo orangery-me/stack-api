@@ -3,6 +3,7 @@ import { WorkspaceEntity } from '@app/entities';
 import { WorkspaceDto } from '@app/modules/workspaces/dto/workspace.dto';
 import { PermissionService, WorkspacePermissions } from '../permission.service';
 import { WorkspacePlanEnum } from '@Constant/enums';
+import { buildWorkspaceCapabilityMap } from './workspace-roles.config';
 
 @Injectable()
 export class WorkspacePolicy {
@@ -10,18 +11,23 @@ export class WorkspacePolicy {
 
   map(workspace: WorkspaceEntity, permissions: WorkspacePermissions | null | undefined): WorkspaceDto | null {
     let dto: WorkspaceDto | null = null;
-    console.log('permissions: ', permissions);
     if (!permissions || !permissions.actions || !permissions.dataScopes) {
       return null;
     }
 
-    if (this.permissionService.hasDataScope(permissions, 'workspace', 'basic')) {
+    if (
+      this.permissionService.hasAction(permissions, 'workspace:view') &&
+      this.permissionService.hasDataScope(permissions, 'workspace', 'basic')
+    ) {
       dto = {
         id: workspace.id,
         name: workspace.name,
         slug: workspace.slug,
         ownerId: workspace.ownerId,
         createdAt: workspace.createdAt,
+        permissions: buildWorkspaceCapabilityMap(permissions, (candidatePermissions, action) =>
+          this.permissionService.hasAction(candidatePermissions, action)
+        ),
       };
 
       if (this.permissionService.hasDataScope(permissions, 'workspace', 'settings')) {

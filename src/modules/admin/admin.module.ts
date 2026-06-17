@@ -24,6 +24,8 @@ import { AdminCommunicationsService } from './communications/admin-communication
 import { AdminWorkspaceRolesController } from './workspaces/admin-workspace-roles.controller';
 import { AdminWorkspaceRolesService } from './workspaces/admin-workspace-roles.service';
 import { SystemLatencyModule } from '../system-latency/system-latency.module';
+import { PermissionService } from '../../policy/permission.service';
+import { WorkspacePermissionService } from '../../policy/workspace/workspace-permission.service';
 
 @Module({
   imports: [
@@ -57,6 +59,8 @@ import { SystemLatencyModule } from '../system-latency/system-latency.module';
     AdminContentService,
     AdminCommunicationsService,
     AdminWorkspaceRolesService,
+    PermissionService,
+    WorkspacePermissionService,
   ],
 })
 export class AdminModule {}

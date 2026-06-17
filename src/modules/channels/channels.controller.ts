@@ -33,7 +33,7 @@ export class ChannelsController {
     @Param('workspaceId') workspaceId: string,
     @Body() createDto: CreateChannelDto
   ): Promise<ResponseItem<ChannelDto>> {
-    return this.channelsService.createChannel(workspaceId, request.user.userId, createDto);
+    return this.channelsService.createChannel(workspaceId, request.user.userId, createDto, request.user.role);
   }
 
   @UseGuards(JwtAccessTokenGuard)
@@ -69,7 +69,7 @@ export class ChannelsController {
   })
   @ApiResponse({ status: 403, description: 'Forbidden - not admin or owner' })
   async getAllChannels(@Req() request, @Param('workspaceId') workspaceId: string): Promise<ResponseItem<ChannelDto[]>> {
-    return this.channelsService.getAllChannels(workspaceId, request.user.userId);
+    return this.channelsService.getAllChannels(workspaceId, request.user.userId, request.user.role);
   }
 
   @UseGuards(JwtAccessTokenGuard)
