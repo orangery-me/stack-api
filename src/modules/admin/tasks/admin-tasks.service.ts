@@ -10,7 +10,7 @@ export class AdminTasksService {
     @InjectRepository(TaskEntity)
     private readonly taskRepository: Repository<TaskEntity>,
     @InjectRepository(TaskListEntity)
-    private readonly taskListRepository: Repository<TaskListEntity>,
+    private readonly taskListRepository: Repository<TaskListEntity>
   ) {}
 
   async getStats() {
@@ -48,43 +48,41 @@ export class AdminTasksService {
       .orderBy('date', 'ASC')
       .getRawMany();
 
-    const labels = created.map(r => {
+    const labels = created.map((r) => {
       const d = new Date(r.date);
       if (period === 'week') return ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()];
       if (period === 'month') return `T${d.getMonth() + 1}`;
       return d.toLocaleDateString('vi-VN');
     });
 
-    return { period, labels, values: created.map(r => parseInt(r.count, 10)) };
+    return { period, labels, values: created.map((r) => parseInt(r.count, 10)) };
   }
 
   async getTimeline(page: number = 1, size: number = 20) {
     // Only return metadata: createdAt, updatedAt, status, no title/content
     const qb = this.taskRepository
       .createQueryBuilder('task')
-      .select([
-        'task.id',
-        'task.status',
-        'task.createdAt',
-        'task.updatedAt',
-        'task.dueDate',
-        'task.priority',
-      ])
+      .select(['task.id', 'task.status', 'task.createdAt', 'task.updatedAt', 'task.dueDate', 'task.priority'])
       .leftJoin('task.taskList', 'taskList')
       .addSelect(['taskList.id', 'taskList.name', 'taskList.workspaceId'])
       .orderBy('task.createdAt', 'DESC');
 
     const total = await qb.getCount();
-    const data = await qb.skip((page - 1) * size).take(size).getMany();
+    const data = await qb
+      .skip((page - 1) * size)
+      .take(size)
+      .getMany();
     return {
-      data: data.map(t => ({
+      data: data.map((t) => ({
         id: t.id,
         status: t.status,
         priority: (t as any).priority,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
         dueDate: (t as any).dueDate,
-        taskList: (t as any).taskList ? { id: (t as any).taskList.id, name: (t as any).taskList.name, workspaceId: (t as any).taskList.workspaceId } : null,
+        taskList: (t as any).taskList
+          ? { id: (t as any).taskList.id, name: (t as any).taskList.name, workspaceId: (t as any).taskList.workspaceId }
+          : null,
       })),
       meta: { page, take: size, total, pageCount: Math.ceil(total / size) },
     };

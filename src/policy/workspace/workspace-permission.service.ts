@@ -36,11 +36,7 @@ export class WorkspacePermissionService {
     private readonly permissionService: PermissionService
   ) {}
 
-  async resolveContext(
-    workspaceId: string,
-    userId: string,
-    userRole?: string
-  ): Promise<WorkspacePermissionContext> {
+  async resolveContext(workspaceId: string, userId: string, userRole?: string): Promise<WorkspacePermissionContext> {
     const isSystemAdmin = userRole === UserRoleEnum.ADMIN.toString();
     if (isSystemAdmin) {
       return {

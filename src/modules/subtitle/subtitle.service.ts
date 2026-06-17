@@ -15,16 +15,8 @@ import { WorkspaceMemberEntity } from '@app/entities/workspace/workspace-member.
 import { WorkspaceMemberStatusEnum } from '@Constant/enums';
 import { HuddleCall } from '../huddle/entities/huddle-call.entity';
 import { HuddleCallStatus } from '../huddle/entities/huddle.enums';
-import {
-  CallTranscript,
-  CallTranscriptStatus,
-  SubtitlePreference,
-  TranscriptSegment,
-} from './entities';
-import {
-  SubtitleTranscriptEvent,
-  TranscriptSegmentInputDto,
-} from './dto/transcript-segment.dto';
+import { CallTranscript, CallTranscriptStatus, SubtitlePreference, TranscriptSegment } from './entities';
+import { SubtitleTranscriptEvent, TranscriptSegmentInputDto } from './dto/transcript-segment.dto';
 import { SubtitlePreferenceResponse } from './dto/subtitle-preference.dto';
 import { HuddleGateway } from '../huddle/huddle.gateway';
 import { CanvasService } from '../canvas/canvas.service';
@@ -98,7 +90,7 @@ export class SubtitleService {
     private readonly canvasService: CanvasService,
     private readonly canvasClient: CanvasClientService,
     @Inject(forwardRef(() => HuddleGateway))
-    private readonly huddleGateway: HuddleGateway,
+    private readonly huddleGateway: HuddleGateway
   ) {}
 
   async processTranscript(dto: TranscriptSegmentInputDto): Promise<{ segment_id: string; accepted: true }> {
@@ -121,7 +113,9 @@ export class SubtitleService {
     return { segment_id: segmentId, accepted: true };
   }
 
-  async getCurrentStateForChannel(channelId: string): Promise<{ call_id: string; channel_id: string; active_segments: SubtitleTranscriptEvent[] } | null> {
+  async getCurrentStateForChannel(
+    channelId: string
+  ): Promise<{ call_id: string; channel_id: string; active_segments: SubtitleTranscriptEvent[] } | null> {
     const call = await this.huddleCallRepo.findOne({
       where: { channelId, status: HuddleCallStatus.ACTIVE },
     });
@@ -203,7 +197,7 @@ export class SubtitleService {
     callId: string,
     userId: string,
     cursor = 0,
-    limit = 100,
+    limit = 100
   ): Promise<{ call_id: string; segments: TranscriptSegment[]; next_cursor: number | null; total: number }> {
     const call = await this.getCallForUser(callId, userId);
     const transcript = await this.callTranscriptRepo.findOne({ where: { callId: call.id } });
@@ -316,9 +310,13 @@ export class SubtitleService {
       call_id: call.id,
       transcript_id: saved.id,
       segment_count: saved.segmentCount,
-      duration_seconds: call.startedAt ? Math.max(0, Math.round(((call.endedAt || new Date()).getTime() - call.startedAt.getTime()) / 1000)) : 0,
+      duration_seconds: call.startedAt
+        ? Math.max(0, Math.round(((call.endedAt || new Date()).getTime() - call.startedAt.getTime()) / 1000))
+        : 0,
     });
-    this.logger.log(`Transcript recording completed call=${call.id} transcript=${saved.id} segments=${saved.segmentCount}`);
+    this.logger.log(
+      `Transcript recording completed call=${call.id} transcript=${saved.id} segments=${saved.segmentCount}`
+    );
     return saved;
   }
 
@@ -327,7 +325,7 @@ export class SubtitleService {
     call: HuddleCall,
     transcript: CallTranscript,
     segments: TranscriptSegment[],
-    channelName: string,
+    channelName: string
   ): Promise<void> {
     const lines = segments.map((segment) => this.formatTranscriptLine(segment));
     const blocks = [
@@ -390,7 +388,10 @@ export class SubtitleService {
 
   private formatDateTime(value?: Date): string {
     if (!value) return 'Unknown';
-    return value.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
+    return value
+      .toISOString()
+      .replace('T', ' ')
+      .replace(/\.\d{3}Z$/, ' UTC');
   }
 
   private formatDateForTitle(value?: Date): string {
@@ -479,7 +480,7 @@ export class SubtitleService {
 
   private async flushOtherSpeakerBuffers(callId: string, currentBufferKey: string): Promise<void> {
     const buffers = Array.from(this.activeTranscriptBuffers.values()).filter(
-      (buffer) => buffer.callId === callId && buffer.key !== currentBufferKey,
+      (buffer) => buffer.callId === callId && buffer.key !== currentBufferKey
     );
 
     for (const buffer of buffers) {
@@ -531,13 +532,13 @@ export class SubtitleService {
           startMs: buffer.startMs,
           endMs: Math.max(buffer.endMs, buffer.startMs),
           sequence,
-        }),
+        })
       );
 
       await this.callTranscriptRepo.increment({ id: buffer.transcriptId }, 'segmentCount', 1);
       this.recordCommittedTranscriptText(buffer.key, text);
       this.logger.debug(
-        `Flushed transcript buffer reason=${reason} call=${buffer.callId} transcript=${buffer.transcriptId} speaker=${buffer.speakerName} sequence=${sequence}`,
+        `Flushed transcript buffer reason=${reason} call=${buffer.callId} transcript=${buffer.transcriptId} speaker=${buffer.speakerName} sequence=${sequence}`
       );
     });
   }
@@ -647,7 +648,7 @@ export class SubtitleService {
     const committed = this.committedTranscriptTextByBufferKey.get(bufferKey);
     this.committedTranscriptTextByBufferKey.set(
       bufferKey,
-      committed ? this.mergeTranscriptText(committed, text) : this.normalizeTranscriptText(text),
+      committed ? this.mergeTranscriptText(committed, text) : this.normalizeTranscriptText(text)
     );
   }
 
@@ -668,7 +669,9 @@ export class SubtitleService {
   }
 
   private normalizeTranscriptText(text: string): string {
-    return String(text || '').trim().replace(/\s+/g, ' ');
+    return String(text || '')
+      .trim()
+      .replace(/\s+/g, ' ');
   }
 
   private mergeTranscriptText(existingText: string, incomingText: string): string {

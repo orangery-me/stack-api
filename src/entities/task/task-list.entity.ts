@@ -1,12 +1,4 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  ManyToOne,
-  OneToMany,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { WorkspaceEntity } from '../workspace/workspace.entity';
 import { ChannelEntity } from '../channel/channel.entity';
 import { WorkspaceMemberEntity } from '../workspace/workspace-member.entity';

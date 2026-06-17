@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 export class AdminCommunicationsService {
   constructor(
     @InjectDataSource()
-    private readonly dataSource: DataSource,
+    private readonly dataSource: DataSource
   ) {}
 
   async getHuddles(from?: string, to?: string) {
@@ -17,7 +17,7 @@ export class AdminCommunicationsService {
        ${from && to ? 'WHERE hc."createdAt" BETWEEN $1 AND $2' : ''}
        ORDER BY hc."createdAt" DESC
        LIMIT 50`,
-      from && to ? [from, to] : [],
+      from && to ? [from, to] : []
     );
     return result;
   }

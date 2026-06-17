@@ -13,7 +13,7 @@ export class AdminAnalyticsService {
     @InjectRepository(WorkspaceEntity)
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
     @InjectRepository(WorkspaceMemberEntity)
-    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>,
+    private readonly workspaceMemberRepository: Repository<WorkspaceMemberEntity>
   ) {}
 
   async getActiveUsers(days: number = 30) {
@@ -28,8 +28,8 @@ export class AdminAnalyticsService {
       .getRawMany();
     return {
       period: `${days}d`,
-      labels: data.map(r => new Date(r.date).toLocaleDateString('vi-VN')),
-      values: data.map(r => parseInt(r.count, 10)),
+      labels: data.map((r) => new Date(r.date).toLocaleDateString('vi-VN')),
+      values: data.map((r) => parseInt(r.count, 10)),
     };
   }
 

@@ -1,9 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards, Delete } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { CanvasService } from './canvas.service';
-import { CreateCanvasDto } from './dto/create-canvas.dto';
 import { UpdateCanvasDto } from './dto/update-canvas.dto';
 import { CanvasDto } from './dto/canvas.dto';
 import { CanvasPermissionListDto } from './dto/canvas-permission.dto';
@@ -43,10 +42,7 @@ export class CanvasController {
     description: 'Canvas access fetched successfully',
     type: CanvasAccessDto,
   })
-  async getCanvasAccess(
-    @Req() request,
-    @Param('canvasId') canvasId: string
-  ): Promise<ResponseItem<CanvasAccessDto>> {
+  async getCanvasAccess(@Req() request, @Param('canvasId') canvasId: string): Promise<ResponseItem<CanvasAccessDto>> {
     const result = await this.canvasService.getCanvasAccess(canvasId, request.user.userId);
     return new ResponseItem<CanvasAccessDto>(result, 'Canvas access fetched successfully');
   }

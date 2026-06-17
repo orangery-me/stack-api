@@ -24,7 +24,8 @@ export class CanvasPermissionListDto {
   visibility: string;
 
   @ApiProperty({
-    description: 'Workspace-wide link access. Enabled means active workspace members with the link can open the canvas.',
+    description:
+      'Workspace-wide link access. Enabled means active workspace members with the link can open the canvas.',
   })
   generalAccess: {
     enabled: boolean;

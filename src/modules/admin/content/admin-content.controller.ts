@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ResponseItem } from '@app/common/dtos';
 import { JwtAccessTokenGuard } from '../../auth/guards/jwt-access-token.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';

@@ -144,7 +144,7 @@ export class WorkspacesService {
     await this.workspaceMemberRepository.save(workspaceMember);
 
     // Create default main channel (public) and add all current members (initially just owner)
-    const mainChannelResult = await this.channelsService.createChannel(savedWorkspace.id, userId, {
+    await this.channelsService.createChannel(savedWorkspace.id, userId, {
       type: ChannelType.PUBLIC,
       name: 'main-channel',
       metadata: {},
@@ -263,7 +263,7 @@ export class WorkspacesService {
       workspaceId,
       inviterUserId,
       'member:invite',
-      inviterUserRole,
+      inviterUserRole
     );
     let inviterMember = invitePermissionContext.member;
 
@@ -438,7 +438,7 @@ export class WorkspacesService {
     const { member, permissions, isSystemAdmin } = await this.workspacePermissionService.resolveContext(
       workspaceId,
       userId,
-      userRole,
+      userRole
     );
 
     if (!isSystemAdmin && !member) {
@@ -479,7 +479,8 @@ export class WorkspacesService {
     const skip = (page - 1) * take;
     const search = query?.search || '';
 
-    const qb = this.workspaceMemberRepository.createQueryBuilder('member')
+    const qb = this.workspaceMemberRepository
+      .createQueryBuilder('member')
       .leftJoinAndSelect('member.user', 'user')
       .leftJoinAndSelect('member.role', 'role')
       .where('member.workspaceId = :workspaceId', { workspaceId });
@@ -493,10 +494,7 @@ export class WorkspacesService {
     qb.orderBy('member.joinedAt', 'ASC');
 
     const total = await qb.getCount();
-    const members = await qb
-      .skip(skip)
-      .take(take)
-      .getMany();
+    const members = await qb.skip(skip).take(take).getMany();
 
     const memberDtos: WorkspaceMemberDto[] = members.map((member) => ({
       id: member.id,

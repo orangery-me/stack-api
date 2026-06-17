@@ -77,8 +77,6 @@ export class NotificationsService {
   }
 
   async listForUser(userId: string, workspaceId?: string, page = 1, size = 20) {
-    const whereClause: Record<string, any> = { recipientUserId: userId };
-
     const query = this.notificationRecipientRepository
       .createQueryBuilder('recipient')
       .leftJoinAndSelect('recipient.notificationEvent', 'event')

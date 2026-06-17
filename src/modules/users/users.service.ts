@@ -100,8 +100,7 @@ export class UsersService {
   }
 
   async getUsers(params: GetUsersDto): Promise<ResponsePaginate<UserDto>> {
-    const qb = this.userRepository.createQueryBuilder('user')
-      .where('user.deletedAt IS NULL');
+    const qb = this.userRepository.createQueryBuilder('user').where('user.deletedAt IS NULL');
 
     if (params.status) {
       qb.andWhere('user.status = :status', { status: params.status });
@@ -111,7 +110,7 @@ export class UsersService {
           UserStatusEnum.ACTIVE,
           UserStatusEnum.INACTIVE,
           UserStatusEnum.BLOCKED,
-          UserStatusEnum.PENDING_VERIFICATION
+          UserStatusEnum.PENDING_VERIFICATION,
         ],
       });
     }
@@ -131,11 +130,8 @@ export class UsersService {
     const total = await qb.getCount();
     const skip = params.skip || 0;
     const take = params.take || 10;
-    
-    const result = await qb
-      .skip(skip)
-      .take(take)
-      .getMany();
+
+    const result = await qb.skip(skip).take(take).getMany();
 
     const pageMetaDto = new PageMetaDto({ itemCount: total, pageOptionsDto: params });
 
@@ -159,7 +155,8 @@ export class UsersService {
     if (!user) throw new BadRequestException('User does not exist');
 
     // Kiểm tra xem user có phải là owner hoặc admin của ít nhất 1 workspace không
-    const hasAdminRole = await this.workspaceMemberRepository.createQueryBuilder('member')
+    const hasAdminRole = await this.workspaceMemberRepository
+      .createQueryBuilder('member')
       .leftJoinAndSelect('member.role', 'role')
       .where('member.userId = :id', { id })
       .andWhere('member.status = :status', { status: 'active' })
@@ -170,10 +167,10 @@ export class UsersService {
 
     const result = plainToClass(
       ProfileDto,
-      { 
-        ...user, 
+      {
+        ...user,
         avatar: user.avatar ? baseImageUrl + convertPath(user.avatar) : null,
-        isWorkspaceAdminOrOwner
+        isWorkspaceAdminOrOwner,
       },
       { excludeExtraneousValues: true }
     );

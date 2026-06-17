@@ -1,4 +1,16 @@
-import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  DefaultValuePipe,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAccessTokenGuard } from '../auth/guards/jwt-access-token.guard';
 import { InternalSecretGuard } from './guards/internal-secret.guard';
@@ -47,7 +59,7 @@ export class SubtitleController {
     @Param('callId') callId: string,
     @Req() req: any,
     @Query('cursor', new DefaultValuePipe(0), ParseIntPipe) cursor: number,
-    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number
   ) {
     return this.subtitleService.getTranscript(callId, req.user?.userId, cursor, limit);
   }

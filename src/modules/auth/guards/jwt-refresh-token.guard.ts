@@ -6,7 +6,10 @@ import { Observable } from 'rxjs';
 
 @Injectable()
 export class JwtRefreshTokenGuard extends AuthGuard('jwt-refresh-token') {
-  constructor(private readonly jwtService: JwtService, private readonly configService: ConfigService) {
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService
+  ) {
     super();
   }
 

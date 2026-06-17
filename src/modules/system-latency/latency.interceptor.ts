@@ -25,13 +25,13 @@ export class LatencyInterceptor implements NestInterceptor {
       tap({
         next: () => this.log(request, response, start),
         error: (err) => this.log(request, response, start, err),
-      }),
+      })
     );
   }
 
   private log(request: any, response: any, start: number, error?: any) {
     const duration = Math.round(performance.now() - start);
-    const statusCode = error ? (error.status || 500) : (response.statusCode || 200);
+    const statusCode = error ? error.status || 500 : response.statusCode || 200;
     const path = request.route?.path || request.url;
     const method = request.method;
     const ip = request.ip || request.headers['x-forwarded-for'] || request.connection.remoteAddress;

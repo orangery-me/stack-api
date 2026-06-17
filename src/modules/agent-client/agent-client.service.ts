@@ -266,7 +266,9 @@ export class AgentClientService implements OnModuleInit {
     size = 50,
     scope?: SessionScopeDto
   ): Promise<MessageListDto> {
-    return lastValueFrom(this.agentService.getSessionMessages({ userId, sessionId, page, size, ...this.normalizeScope(scope) }));
+    return lastValueFrom(
+      this.agentService.getSessionMessages({ userId, sessionId, page, size, ...this.normalizeScope(scope) })
+    );
   }
 
   async updateMessageActionStatus(data: UpdateMessageActionStatusRequest): Promise<ChatMessageDto> {

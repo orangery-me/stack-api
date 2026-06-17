@@ -8,7 +8,7 @@ import { ListAuditLogsDto } from './dto/list-audit-logs.dto';
 export class AuditLogService {
   constructor(
     @InjectRepository(AuditLog)
-    private readonly auditLogRepository: Repository<AuditLog>,
+    private readonly auditLogRepository: Repository<AuditLog>
   ) {}
 
   async findAll(query: ListAuditLogsDto) {
@@ -30,10 +30,7 @@ export class AuditLogService {
       qb.andWhere('log.createdAt <= :to', { to: new Date(query.to) });
     }
     if (query.search) {
-      qb.andWhere(
-        '(log.userName ILIKE :search OR log.action ILIKE :search)',
-        { search: `%${query.search}%` },
-      );
+      qb.andWhere('(log.userName ILIKE :search OR log.action ILIKE :search)', { search: `%${query.search}%` });
     }
 
     const total = await qb.getCount();

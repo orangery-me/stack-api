@@ -50,14 +50,14 @@ export class HuddleService {
     @Inject(forwardRef(() => SubtitleClientService))
     private readonly subtitleClientService: SubtitleClientService,
     @Inject(forwardRef(() => SubtitleService))
-    private readonly subtitleService: SubtitleService,
+    private readonly subtitleService: SubtitleService
   ) {}
 
   async createHuddle(
     channelId: string,
     userId: string,
     userName: string,
-    dto: CreateHuddleDto = {},
+    dto: CreateHuddleDto = {}
   ): Promise<HuddleJoinResponse> {
     const channel = await this.channelRepo.findOne({ where: { id: channelId } });
     if (!channel) {
@@ -159,7 +159,7 @@ export class HuddleService {
       ? Boolean(
           await this.participantRepo.findOne({
             where: { callId: call.id, userId, status: HuddleParticipantStatus.ACTIVE },
-          }),
+          })
         )
       : false;
 
@@ -175,7 +175,7 @@ export class HuddleService {
     userId: string,
     userName: string,
     sessionId: string,
-    dto: Partial<JoinHuddleDto> = {},
+    dto: Partial<JoinHuddleDto> = {}
   ): Promise<HuddleJoinResponse> {
     const channel = await this.channelRepo.findOne({ where: { id: channelId } });
     if (!channel) {
@@ -343,7 +343,7 @@ export class HuddleService {
     channelId: string,
     userId: string,
     micEnabled?: boolean,
-    cameraEnabled?: boolean,
+    cameraEnabled?: boolean
   ): Promise<{ updated: boolean; micEnabled: boolean; cameraEnabled: boolean }> {
     const call = await this.huddleCallRepo.findOne({
       where: { channelId, status: HuddleCallStatus.ACTIVE },
@@ -379,7 +379,7 @@ export class HuddleService {
     channelId: string,
     userId: string,
     userName: string,
-    dto: TransferDeviceDto,
+    dto: TransferDeviceDto
   ): Promise<HuddleJoinResponse | { transferred: boolean; message: string }> {
     const call = await this.huddleCallRepo.findOne({
       where: { channelId, status: HuddleCallStatus.ACTIVE },
@@ -428,7 +428,11 @@ export class HuddleService {
     };
   }
 
-  async refreshToken(channelId: string, userId: string, userName: string): Promise<{ livekitToken: string; expiresIn: number }> {
+  async refreshToken(
+    channelId: string,
+    userId: string,
+    userName: string
+  ): Promise<{ livekitToken: string; expiresIn: number }> {
     const call = await this.huddleCallRepo.findOne({
       where: { channelId, status: HuddleCallStatus.ACTIVE },
     });
@@ -462,7 +466,11 @@ export class HuddleService {
     };
   }
 
-  private async emitParticipantStateChanged(channelId: string, callId: string, participant: HuddleParticipant): Promise<void> {
+  private async emitParticipantStateChanged(
+    channelId: string,
+    callId: string,
+    participant: HuddleParticipant
+  ): Promise<void> {
     const participantCount = await this.participantRepo.count({
       where: { callId, status: HuddleParticipantStatus.ACTIVE },
     });
@@ -481,7 +489,7 @@ export class HuddleService {
       const botToken = await this.liveKitService.generateSubscribeOnlyToken(
         call.livekitRoomName,
         `subtitle-bot:${call.id}`,
-        'Subtitle Bot',
+        'Subtitle Bot'
       );
       const started = await this.subtitleClientService.startSession({
         callId: call.id,
@@ -517,10 +525,9 @@ export class HuddleService {
     metadata: Record<string, any>;
   }): Promise<void> {
     try {
-      const user = await this.workspaceMemberRepo.manager.query(
-        `SELECT email, avatar FROM users WHERE id = $1`,
-        [params.userId],
-      );
+      const user = await this.workspaceMemberRepo.manager.query(`SELECT email, avatar FROM users WHERE id = $1`, [
+        params.userId,
+      ]);
 
       const message = await this.chatClientService.sendMessage({
         userId: params.userId,

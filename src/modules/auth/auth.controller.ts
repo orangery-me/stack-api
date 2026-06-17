@@ -17,7 +17,10 @@ import { GoogleAuthService } from './google-auth.service';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService, private readonly googleAuthService: GoogleAuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly googleAuthService: GoogleAuthService
+  ) {}
 
   @UseGuards(LocalAuthGuard)
   @HttpCode(200)
@@ -30,7 +33,7 @@ export class AuthController {
     type: TokenDto,
   })
   @ApiResponse({ status: 401, description: 'Invalid login credentials' })
-  async login(@Req() request, @Body() _credentials: CredentialsDto): Promise<ResponseItem<TokenDto>> {
+  async login(@Req() request): Promise<ResponseItem<TokenDto>> {
     return this.authService.login(request.user);
   }
 

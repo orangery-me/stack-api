@@ -1,9 +1,4 @@
-import {
-  ForbiddenException,
-  forwardRef,
-  Inject,
-  Logger,
-} from '@nestjs/common';
+import { ForbiddenException, forwardRef, Inject, Logger } from '@nestjs/common';
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -48,7 +43,7 @@ export class HuddleGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     @InjectRepository(WorkspaceMemberEntity)
     private readonly workspaceMemberRepo: Repository<WorkspaceMemberEntity>,
     @Inject(forwardRef(() => SubtitleService))
-    private readonly subtitleService: SubtitleService,
+    private readonly subtitleService: SubtitleService
   ) {}
 
   afterInit() {
@@ -82,10 +77,7 @@ export class HuddleGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   @SubscribeMessage('huddle:subscribe')
-  async handleSubscribe(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: JoinChannelPayload,
-  ) {
+  async handleSubscribe(@ConnectedSocket() client: Socket, @MessageBody() data: JoinChannelPayload) {
     if (!data.channelId) return;
     const userId = client.data.user?.userId;
     if (!userId || !(await this.canAccessChannel(data.channelId, userId))) {
@@ -104,10 +96,7 @@ export class HuddleGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   @SubscribeMessage('huddle:unsubscribe')
-  handleUnsubscribe(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: JoinChannelPayload,
-  ) {
+  handleUnsubscribe(@ConnectedSocket() client: Socket, @MessageBody() data: JoinChannelPayload) {
     if (!data.channelId) return;
     const room = `channel:${data.channelId}`;
     client.leave(room);
@@ -115,10 +104,7 @@ export class HuddleGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   @SubscribeMessage('subtitle:preference')
-  async handleSubtitlePreference(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: SubtitlePreferencePayload,
-  ) {
+  async handleSubtitlePreference(@ConnectedSocket() client: Socket, @MessageBody() data: SubtitlePreferencePayload) {
     const userId = client.data.user?.userId;
     if (!userId || typeof data?.enabled !== 'boolean') return;
     await this.subtitleService.updatePreference(userId, data.enabled);

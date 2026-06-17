@@ -8,7 +8,7 @@ import { UpdateSettingsDto } from './dto/update-setting.dto';
 export class SystemSettingsService {
   constructor(
     @InjectRepository(SystemSetting)
-    private readonly settingRepository: Repository<SystemSetting>,
+    private readonly settingRepository: Repository<SystemSetting>
   ) {}
 
   async findAll(): Promise<SystemSetting[]> {

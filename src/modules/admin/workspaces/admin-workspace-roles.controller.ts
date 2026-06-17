@@ -33,7 +33,7 @@ export class AdminWorkspaceRolesController {
   async createWorkspaceRole(
     @Req() req,
     @Param('workspaceId') workspaceId: string,
-    @Body() dto: CreateWorkspaceRoleDto,
+    @Body() dto: CreateWorkspaceRoleDto
   ) {
     const data = await this.service.createWorkspaceRole(workspaceId, dto, req.user.userId, req.user.role);
     return new ResponseItem(data, 'Workspace role created successfully');
@@ -43,11 +43,7 @@ export class AdminWorkspaceRolesController {
   @ApiOperation({ summary: 'Update a workspace role' })
   @ApiParam({ name: 'id', description: 'Workspace Role ID' })
   @ApiBody({ type: UpdateWorkspaceRoleDto })
-  async updateWorkspaceRole(
-    @Req() req,
-    @Param('id') id: string,
-    @Body() dto: UpdateWorkspaceRoleDto,
-  ) {
+  async updateWorkspaceRole(@Req() req, @Param('id') id: string, @Body() dto: UpdateWorkspaceRoleDto) {
     const data = await this.service.updateWorkspaceRole(id, dto, req.user.userId, req.user.role);
     return new ResponseItem(data, 'Workspace role updated successfully');
   }
@@ -64,11 +60,7 @@ export class AdminWorkspaceRolesController {
   @ApiOperation({ summary: 'Update workspace member role' })
   @ApiParam({ name: 'memberId', description: 'Workspace Member ID' })
   @ApiBody({ type: UpdateMemberRoleDto })
-  async updateMemberRole(
-    @Req() req,
-    @Param('memberId') memberId: string,
-    @Body() dto: UpdateMemberRoleDto,
-  ) {
+  async updateMemberRole(@Req() req, @Param('memberId') memberId: string, @Body() dto: UpdateMemberRoleDto) {
     const data = await this.service.updateMemberRole(memberId, dto.roleId, req.user.userId, req.user.role);
     return new ResponseItem(data, 'Workspace member role updated successfully');
   }
