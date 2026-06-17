@@ -2,15 +2,12 @@ import { WorkspaceRoleNameEnum } from '@Constant/enums';
 import type { WorkspacePermissions } from '../permission.service';
 
 export const WORKSPACE_PERMISSION_ACTIONS = [
-  'workspace:view',
   'workspace:manage_roles',
   'workspace:update_settings',
   'member:invite',
-  'member:view',
   'member:update_role',
   'member:remove',
   'channel:create',
-  'channel:view_all',
 ] as const;
 
 export const WORKSPACE_PERMISSION_WILDCARDS = ['workspace:*', 'member:*', 'channel:*'] as const;
@@ -20,24 +17,19 @@ export type WorkspacePermissionWildcard = (typeof WORKSPACE_PERMISSION_WILDCARDS
 export type WorkspacePermissionKey = WorkspacePermissionAction | WorkspacePermissionWildcard;
 
 export const WORKSPACE_PERMISSION_LABELS: Record<WorkspacePermissionAction, string> = {
-  'workspace:view': 'Có thể truy cập workspace',
   'workspace:manage_roles': 'Có thể quản lý role và quyền',
   'workspace:update_settings': 'Có thể chỉnh cài đặt workspace',
   'member:invite': 'Có thể mời thành viên',
-  'member:view': 'Có thể xem danh sách thành viên',
   'member:update_role': 'Có thể đổi role thành viên',
   'member:remove': 'Có thể xóa thành viên khỏi workspace',
   'channel:create': 'Có thể tạo channel',
-  'channel:view_all': 'Có thể xem tất cả channels trong workspace',
 };
 
 export interface WorkspaceCapabilityMap {
   canInviteMembers: boolean;
-  canViewMembers: boolean;
   canUpdateMemberRole: boolean;
   canRemoveMembers: boolean;
   canCreateChannel: boolean;
-  canViewAllChannels: boolean;
   canManageWorkspaceRoles: boolean;
   canUpdateWorkspaceSettings: boolean;
 }
@@ -109,11 +101,9 @@ export function buildWorkspaceCapabilityMap(
 
   return {
     canInviteMembers: can('member:invite'),
-    canViewMembers: can('member:view'),
     canUpdateMemberRole: can('member:update_role'),
     canRemoveMembers: can('member:remove'),
     canCreateChannel: can('channel:create'),
-    canViewAllChannels: can('channel:view_all'),
     canManageWorkspaceRoles: can('workspace:manage_roles'),
     canUpdateWorkspaceSettings: can('workspace:update_settings'),
   };
@@ -137,12 +127,9 @@ export const DEFAULT_WORKSPACE_ROLES: WorkspaceRoleConfig[] = [
     name: WorkspaceRoleNameEnum.ADMIN,
     permissions: {
       actions: {
-        'workspace:view': true,
         'workspace:update_settings': true,
-        'workspace:manage_roles': true,
         'member:*': true,
         'channel:create': true,
-        'channel:view_all': true,
       },
       dataScopes: {
         workspace: ['basic', 'settings', 'plan'],
@@ -152,9 +139,7 @@ export const DEFAULT_WORKSPACE_ROLES: WorkspaceRoleConfig[] = [
   {
     name: WorkspaceRoleNameEnum.MEMBER,
     permissions: {
-      actions: {
-        'workspace:view': true,
-      },
+      actions: {},
       dataScopes: {
         workspace: ['basic', 'plan'],
       },

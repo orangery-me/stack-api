@@ -72,4 +72,12 @@ export class AdminWorkspaceRolesController {
     const data = await this.service.updateMemberRole(memberId, dto.roleId, req.user.userId, req.user.role);
     return new ResponseItem(data, 'Workspace member role updated successfully');
   }
+
+  @Delete('workspace-members/:memberId')
+  @ApiOperation({ summary: 'Remove workspace member' })
+  @ApiParam({ name: 'memberId', description: 'Workspace Member ID' })
+  async removeWorkspaceMember(@Req() req, @Param('memberId') memberId: string) {
+    await this.service.removeWorkspaceMember(memberId, req.user.userId, req.user.role);
+    return new ResponseItem(null, 'Workspace member removed successfully');
+  }
 }

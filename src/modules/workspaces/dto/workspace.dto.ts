@@ -68,11 +68,9 @@ export class WorkspaceDto {
     description: 'Workspace capabilities của user hiện tại',
     example: {
       canInviteMembers: true,
-      canViewMembers: true,
       canUpdateMemberRole: true,
       canRemoveMembers: true,
       canCreateChannel: true,
-      canViewAllChannels: true,
       canManageWorkspaceRoles: true,
       canUpdateWorkspaceSettings: true,
     },

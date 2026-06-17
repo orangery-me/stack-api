@@ -472,12 +472,7 @@ export class WorkspacesService {
       throw new NotFoundException('Workspace does not exist');
     }
 
-    await this.workspacePermissionService.enforceWorkspaceAction(
-      workspaceId,
-      requesterUserId,
-      'member:view',
-      requesterUserRole,
-    );
+    await this.workspacePermissionService.enforceWorkspaceMember(workspaceId, requesterUserId, requesterUserRole);
 
     const page = Number(query?.page) || 1;
     const take = Number(query?.take) || 10;

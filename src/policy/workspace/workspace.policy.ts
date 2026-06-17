@@ -15,10 +15,7 @@ export class WorkspacePolicy {
       return null;
     }
 
-    if (
-      this.permissionService.hasAction(permissions, 'workspace:view') &&
-      this.permissionService.hasDataScope(permissions, 'workspace', 'basic')
-    ) {
+    if (this.permissionService.hasDataScope(permissions, 'workspace', 'basic')) {
       dto = {
         id: workspace.id,
         name: workspace.name,
