@@ -33,12 +33,7 @@ export class AdminWorkspaceRolesService {
   }
 
   async getWorkspaceRoles(workspaceId: string, userId: string, userRole: string): Promise<WorkspaceRoleEntity[]> {
-    await this.workspacePermissionService.enforceWorkspaceAction(
-      workspaceId,
-      userId,
-      'workspace:manage_roles',
-      userRole,
-    );
+    await this.workspacePermissionService.enforceWorkspaceMember(workspaceId, userId, userRole);
 
     const workspace = await this.workspaceRepository.findOne({ where: { id: workspaceId } });
     if (!workspace) {
@@ -226,5 +221,28 @@ export class AdminWorkspaceRolesService {
     member.roleId = roleId;
     member.role = newRole;
     return this.workspaceMemberRepository.save(member);
+  }
+
+  async removeWorkspaceMember(memberId: string, userId: string, userRole: string): Promise<void> {
+    const member = await this.workspaceMemberRepository.findOne({
+      where: { id: memberId },
+      relations: ['workspace'],
+    });
+    if (!member) {
+      throw new NotFoundException('Workspace member not found');
+    }
+
+    await this.workspacePermissionService.enforceWorkspaceAction(
+      member.workspaceId,
+      userId,
+      'member:remove',
+      userRole,
+    );
+
+    if (member.userId === member.workspace.ownerId) {
+      throw new ForbiddenException('Cannot remove the workspace owner');
+    }
+
+    await this.workspaceMemberRepository.remove(member);
   }
 }

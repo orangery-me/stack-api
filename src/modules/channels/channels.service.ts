@@ -440,7 +440,7 @@ export class ChannelsService {
       throw new NotFoundException('Workspace does not exist');
     }
 
-    await this.workspacePermissionService.enforceWorkspaceAction(workspaceId, userId, 'channel:view_all', userRole);
+    await this.workspacePermissionService.enforceWorkspaceMember(workspaceId, userId, userRole);
 
     // Get all channels in workspace
     const channels = await this.channelRepository.find({

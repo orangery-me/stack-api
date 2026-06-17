@@ -70,7 +70,6 @@ export class WorkspacePermissionService {
       permissions.actions['member:*'] === true &&
       permissions.actions['channel:*'] === true
     ) {
-      permissions.actions['workspace:manage_roles'] = true;
       permissions.actions['workspace:update_settings'] = true;
     }
 
@@ -91,6 +90,20 @@ export class WorkspacePermissionService {
 
     if (!context.permissions || !this.permissionService.hasAction(context.permissions, action)) {
       throw new ForbiddenException('You do not have permission to perform this action in this workspace');
+    }
+
+    return context;
+  }
+
+  async enforceWorkspaceMember(
+    workspaceId: string,
+    userId: string,
+    userRole?: string
+  ): Promise<WorkspacePermissionContext> {
+    const context = await this.resolveContext(workspaceId, userId, userRole);
+
+    if (!context.isSystemAdmin && !context.member) {
+      throw new ForbiddenException('You are not a member of this workspace');
     }
 
     return context;
