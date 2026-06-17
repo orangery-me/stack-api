@@ -293,6 +293,7 @@ export class AgentController {
       provider?: string;
       model?: string;
       mode?: string;
+      selectedContext?: string;
     },
     @Res() res: Response
   ): Promise<void> {
@@ -309,6 +310,7 @@ export class AgentController {
       provider: body.provider,
       model: body.model,
       mode: body.mode,
+      selectedContext: body.selectedContext,
     });
 
     const subscription = stream$.subscribe({

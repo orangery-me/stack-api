@@ -90,6 +90,7 @@ export interface CanvasSessionMessageRequest {
   provider?: string;
   model?: string;
   mode?: string;
+  selectedContext?: string;
 }
 
 export interface CanvasApplyActionRequest {
@@ -181,6 +182,7 @@ interface AgentServiceClient {
     provider?: string;
     model?: string;
     mode?: string;
+    selectedContext?: string;
   }): Observable<AskAgentStreamChunk>;
   canvasApplyAction(data: {
     canvasId: string;
@@ -303,6 +305,7 @@ export class AgentClientService implements OnModuleInit {
       provider: data.provider,
       model: data.model,
       mode: data.mode,
+      selectedContext: data.selectedContext,
     });
   }
 
