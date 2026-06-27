@@ -4,12 +4,14 @@ import { z } from 'zod';
 import { CanvasClientService } from '../canvas-client/canvas-client.service';
 import { TasksService } from '../tasks/tasks.service';
 import { TaskPriority, TaskStatus } from '@app/entities/task/task.entity';
+import { CanvasSuggestionService } from '../canvas/canvas-suggestion.service';
 
 @Injectable()
 export class McpService {
   constructor(
     private readonly canvasClient: CanvasClientService,
-    private readonly tasksService: TasksService
+    private readonly tasksService: TasksService,
+    private readonly canvasSuggestionService: CanvasSuggestionService
   ) {}
 
   createServer(): McpServer {
@@ -27,7 +29,7 @@ export class McpService {
 
     server.tool(
       'get_canvas_blocks',
-      'Read all top-level blocks from a canvas. Returns an array of blocks with index, type, and text.',
+      'Read all top-level blocks from a canvas. Returns an array of blocks with stable id, index, type, and text.',
       { canvas_id: z.string().describe('The canvas document ID') },
       async ({ canvas_id }) => {
         const blocks = await this.canvasClient.getBlocks(canvas_id);
@@ -37,72 +39,70 @@ export class McpService {
       }
     );
 
-    server.tool(
-      'insert_canvas_block',
-      'Insert a new block into the canvas after the given index. If afterIndex is -1 or omitted, the block is prepended.',
-      {
-        canvas_id: z.string().describe('The canvas document ID'),
-        content: z.string().describe('Text content of the new block'),
-        type: z
-          .enum(['paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote', 'codeBlock'])
-          .optional()
-          .default('paragraph')
-          .describe('Block node type (default: paragraph)'),
-        after_index: z
-          .number()
-          .int()
-          .optional()
-          .describe('Index of the block to insert after. Omit or use -1 to prepend.'),
-      },
-      async ({ canvas_id, content, type, after_index }) => {
-        const result = await this.canvasClient.insertBlock(canvas_id, content, type, after_index);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      }
-    );
+    const newCanvasBlockSchema = z.object({
+      id: z.string().optional().describe('Optional stable block ID. Omit unless preserving or explicitly creating one.'),
+      type: z
+        .enum(['paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote', 'codeBlock'])
+        .optional()
+        .default('paragraph')
+        .describe('Block node type'),
+      content: z.string().optional().describe('Plain text content of the block'),
+      text: z.string().optional().describe('Alias for content'),
+    });
+
+    const canvasMutationSchema = z.discriminatedUnion('action', [
+      z.object({
+        action: z.literal('replace_text'),
+        block_id: z.string().describe('Stable ID of the block to edit'),
+        new_text: z.string().describe('Full replacement plain text for the block'),
+      }),
+      z.object({
+        action: z.literal('replace_block'),
+        block_id: z.string().describe('Stable ID of the block to replace'),
+        new_block: newCanvasBlockSchema.describe('Replacement block. Its id defaults to the replaced block id.'),
+      }),
+      z.object({
+        action: z.literal('insert_before'),
+        target_block_id: z.string().nullable().optional().describe('Target block ID. Null/omitted prepends.'),
+        new_block: newCanvasBlockSchema.describe('Block to insert'),
+      }),
+      z.object({
+        action: z.literal('insert_after'),
+        target_block_id: z.string().nullable().optional().describe('Target block ID. Null/omitted appends.'),
+        new_block: newCanvasBlockSchema.describe('Block to insert'),
+      }),
+      z.object({
+        action: z.literal('delete_block'),
+        block_id: z.string().describe('Stable ID of the block to delete'),
+      }),
+    ]);
 
     server.tool(
-      'update_canvas_block',
-      'Replace the text content of an existing block at the given index.',
+      'edit_canvas_blocks',
+      [
+        'Apply multiple canvas block edits atomically using stable block IDs.',
+        'Use this single tool for all canvas edits; do not target blocks by index.',
+        'For rewriting/deleting/recreating a section, send one mutations array so the user can accept once.',
+      ].join(' '),
       {
         canvas_id: z.string().describe('The canvas document ID'),
-        index: z.number().int().describe('Zero-based index of the block to update'),
-        content: z.string().describe('New text content for the block'),
+        message_id: z.string().optional().describe('Optional assistant message/session identifier for suggestion linking'),
+        action_id: z.string().optional().describe('Optional parent AI action identifier'),
+        mutations: z.array(canvasMutationSchema).min(1).describe('Ordered batch of id-based canvas mutations'),
       },
-      async ({ canvas_id, index, content }) => {
-        const result = await this.canvasClient.updateBlock(canvas_id, index, content);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      async ({ canvas_id, message_id, action_id, mutations }) => {
+        const suggestions = await this.canvasSuggestionService.createFromMutations({
+          canvasId: canvas_id,
+          messageId: message_id,
+          actionId: action_id,
+          mutations,
+          createdBy: 'ai',
+        });
+        const result = {
+          ok: true,
+          suggestions,
+          createdSuggestionCount: suggestions.length,
         };
-      }
-    );
-
-    server.tool(
-      'delete_canvas_block',
-      'Delete the block at the given index from the canvas.',
-      {
-        canvas_id: z.string().describe('The canvas document ID'),
-        index: z.number().int().describe('Zero-based index of the block to delete'),
-      },
-      async ({ canvas_id, index }) => {
-        const result = await this.canvasClient.deleteBlock(canvas_id, index);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      }
-    );
-
-    server.tool(
-      'reorder_canvas_blocks',
-      'Move a block from one position to another in the canvas.',
-      {
-        canvas_id: z.string().describe('The canvas document ID'),
-        from_index: z.number().int().describe('Zero-based index of the block to move'),
-        to_index: z.number().int().describe('Zero-based target index to move the block to'),
-      },
-      async ({ canvas_id, from_index, to_index }) => {
-        const result = await this.canvasClient.reorderBlocks(canvas_id, from_index, to_index);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
