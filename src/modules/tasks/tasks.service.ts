@@ -636,6 +636,19 @@ export class TasksService {
     );
   }
 
+  async listTasksForMcp(
+    workspaceId: string,
+    actingUserId: string,
+    taskListId: string,
+    filters: Pick<TaskFilterDto, 'status' | 'priority' | 'assigneeId' | 'page' | 'size'> = {}
+  ): Promise<{ tasks: TaskDto[]; total: number; page: number; hasMore: boolean }> {
+    const response = await this.getTasksByList(workspaceId, taskListId, actingUserId, {
+      ...filters,
+      size: filters.size || 100,
+    });
+    return response.data as { tasks: TaskDto[]; total: number; page: number; hasMore: boolean };
+  }
+
   async getTaskById(workspaceId: string, taskId: string, userId: string): Promise<ResponseItem<TaskDto>> {
     const workspaceMember = await this.resolveWorkspaceMember(workspaceId, userId);
     const task = await this.getTaskOrFail(taskId, workspaceId, true);
@@ -964,5 +977,47 @@ export class TasksService {
       },
       'My tasks fetched successfully'
     );
+  }
+
+  async queryTasksForMcp(
+    workspaceId: string,
+    actingUserId: string,
+    filters: {
+      channelId: string;
+      status?: TaskStatus;
+      isOverdue?: boolean;
+    }
+  ): Promise<TaskDto[]> {
+    const workspaceMember = await this.resolveWorkspaceMember(workspaceId, actingUserId);
+    await this.getChannelOrFail(filters.channelId, workspaceId);
+    await this.verifyChannelMembership(filters.channelId, workspaceMember.id);
+
+    const query = this.taskRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignees', 'assignee')
+      .leftJoinAndSelect('assignee.workspaceMember', 'assigneeMember')
+      .leftJoinAndSelect('assigneeMember.user', 'assigneeUser')
+      .leftJoinAndSelect('task.createdBy', 'creator')
+      .leftJoinAndSelect('creator.user', 'creatorUser')
+      .where('task.workspaceId = :workspaceId', { workspaceId })
+      .andWhere('task.channelId = :channelId', { channelId: filters.channelId })
+      .andWhere('task.deletedAt IS NULL');
+
+    if (filters.status) {
+      query.andWhere('task.status = :status', { status: filters.status });
+    }
+
+    if (filters.isOverdue) {
+      query
+        .andWhere('task.dueDate IS NOT NULL')
+        .andWhere('task.dueDate < :now', { now: new Date() })
+        .andWhere('task.status != :doneStatus', { doneStatus: TaskStatus.DONE });
+    }
+
+    const tasks = await query
+      .orderBy('task.dueDate', 'ASC', 'NULLS LAST')
+      .addOrderBy('task.createdAt', 'DESC')
+      .getMany();
+    return tasks.map((task) => this.mapTaskToLeaf(task));
   }
 }

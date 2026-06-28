@@ -94,4 +94,8 @@ export class AgentService {
   async taskApplyAction(data: TaskApplyActionRequest): Promise<TaskApplyActionResponse> {
     return this.agentClientService.taskApplyAction(data);
   }
+
+  taskApplyActionStream(data: TaskApplyActionRequest): Observable<AskAgentStreamChunk> {
+    return this.agentClientService.taskApplyActionStream(data);
+  }
 }

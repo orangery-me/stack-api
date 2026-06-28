@@ -66,6 +66,8 @@ export interface SendMessageRequest {
   message: string;
   provider?: string;
   model?: string;
+  workspaceId?: string;
+  channelId?: string;
 }
 
 export interface SendMessageResponse {
@@ -124,9 +126,18 @@ export interface TaskSessionMessageRequest {
 
 export interface TaskApplyActionRequest {
   userId: string;
+  sessionId?: string;
   workspaceId: string;
   channelId?: string;
   taskListId?: string;
+  canvasId?: string;
+  canvasContent?: string;
+  canvasTitle?: string;
+  sourceCanvasUrl?: string;
+  overallDueDate?: string;
+  timezone?: string;
+  provider?: string;
+  model?: string;
   actionName: string;
   actionArgsJson: string;
 }
@@ -207,12 +218,38 @@ interface AgentServiceClient {
   }): Observable<AskAgentStreamChunk>;
   taskApplyAction(data: {
     userId: string;
+    sessionId?: string;
     workspaceId: string;
     channelId?: string;
     taskListId?: string;
+    canvasId?: string;
+    canvasContent?: string;
+    canvasTitle?: string;
+    sourceCanvasUrl?: string;
+    overallDueDate?: string;
+    timezone?: string;
+    provider?: string;
+    model?: string;
     actionName: string;
     actionArgsJson: string;
   }): Observable<TaskApplyActionResponse>;
+  taskApplyActionStream(data: {
+    userId: string;
+    sessionId?: string;
+    workspaceId: string;
+    channelId?: string;
+    taskListId?: string;
+    canvasId?: string;
+    canvasContent?: string;
+    canvasTitle?: string;
+    sourceCanvasUrl?: string;
+    overallDueDate?: string;
+    timezone?: string;
+    provider?: string;
+    model?: string;
+    actionName: string;
+    actionArgsJson: string;
+  }): Observable<AskAgentStreamChunk>;
 }
 
 @Injectable()
@@ -334,6 +371,10 @@ export class AgentClientService implements OnModuleInit {
 
   async taskApplyAction(data: TaskApplyActionRequest): Promise<TaskApplyActionResponse> {
     return lastValueFrom(this.agentService.taskApplyAction(data));
+  }
+
+  taskApplyActionStream(data: TaskApplyActionRequest): Observable<AskAgentStreamChunk> {
+    return this.agentService.taskApplyActionStream(data);
   }
 
   private normalizeScope(scope?: SessionScopeDto): { scopeType: string; scopeId?: string } {
