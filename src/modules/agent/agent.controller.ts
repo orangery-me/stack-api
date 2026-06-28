@@ -195,12 +195,20 @@ export class AgentController {
   @ApiOperation({ summary: 'Send a message in a session (SSE streaming)' })
   @ApiParam({ name: 'sessionId' })
   @ApiBody({
-    schema: { properties: { message: { type: 'string' }, provider: { type: 'string' }, model: { type: 'string' } } },
+    schema: {
+      properties: {
+        message: { type: 'string' },
+        provider: { type: 'string' },
+        model: { type: 'string' },
+        workspaceId: { type: 'string' },
+        channelId: { type: 'string' },
+      },
+    },
   })
   async sendMessageStream(
     @Req() req: Request,
     @Param('sessionId') sessionId: string,
-    @Body() body: { message: string; provider?: string; model?: string },
+    @Body() body: { message: string; provider?: string; model?: string; workspaceId?: string; channelId?: string },
     @Res() res: Response
   ): Promise<void> {
     const userId = String((req.user as any).userId);
@@ -431,6 +439,68 @@ export class AgentController {
       actionArgsJson: body.actionArgsJson,
     });
     return new ResponseItem(result, result.ok ? 'Action applied' : 'Action failed');
+  }
+
+  @Post('tasks/actions/apply/stream')
+  @ApiOperation({ summary: 'Apply one approved task action and continue the backend agent loop' })
+  async applyTaskActionStream(
+    @Req() req: Request,
+    @Body()
+    body: {
+      sessionId: string;
+      workspaceId: string;
+      channelId?: string;
+      taskListId?: string;
+      canvasId?: string;
+      canvasContent?: string;
+      canvasTitle?: string;
+      sourceCanvasUrl?: string;
+      overallDueDate?: string;
+      timezone?: string;
+      provider?: string;
+      model?: string;
+      actionName: string;
+      actionArgsJson: string;
+    },
+    @Res() res: Response
+  ): Promise<void> {
+    const userId = String((req.user as any).userId);
+    this.setSSEHeaders(res);
+
+    const stream$ = this.agentService.taskApplyActionStream({
+      userId,
+      sessionId: body.sessionId,
+      workspaceId: body.workspaceId,
+      channelId: body.channelId,
+      taskListId: body.taskListId,
+      canvasId: body.canvasId,
+      canvasContent: body.canvasContent ?? '',
+      canvasTitle: body.canvasTitle,
+      sourceCanvasUrl: body.sourceCanvasUrl,
+      overallDueDate: body.overallDueDate,
+      timezone: body.timezone,
+      provider: body.provider,
+      model: body.model,
+      actionName: body.actionName,
+      actionArgsJson: body.actionArgsJson,
+    });
+
+    const subscription = stream$.subscribe({
+      next: (item) => {
+        if (item.done) {
+          res.write(`data: [DONE]\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ chunk: item.chunk })}\n\n`);
+        }
+      },
+      error: (err: any) => {
+        res.write(`data: ${JSON.stringify({ error: err?.message ?? 'Stream error' })}\n\n`);
+        res.end();
+      },
+      complete: () => res.end(),
+    });
+
+    res.on('close', () => subscription.unsubscribe());
   }
 
   // ---- Helpers ----

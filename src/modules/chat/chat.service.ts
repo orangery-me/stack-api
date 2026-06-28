@@ -178,7 +178,7 @@ export class ChatService {
       mentions: dto.metadata?.mentions,
     });
 
-    return {
+    const message = {
       id: result.id,
       senderId: result.senderId,
       senderName: result.senderName,
@@ -193,6 +193,9 @@ export class ChatService {
       pinnedAt: result.pinnedAt || null,
       pinnedBy: result.pinnedBy || null,
     };
+
+    this.chatRealtimeService.emitNewMessage(channelId, message);
+    return message;
   }
 
   async uploadAttachment(

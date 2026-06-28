@@ -4,12 +4,29 @@ import { z } from 'zod';
 import { CanvasClientService } from '../canvas-client/canvas-client.service';
 import { TasksService } from '../tasks/tasks.service';
 import { TaskPriority, TaskStatus } from '@app/entities/task/task.entity';
+import { CanvasSuggestionService } from '../canvas/canvas-suggestion.service';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class McpService {
+  private readonly toolPolicies = new Map<string, boolean>([
+    ['get_canvas_blocks', false],
+    ['list_task_lists', false],
+    ['list_tasks', false],
+    ['search_workspace_members', false],
+    ['query_tasks', false],
+    ['create_task', true],
+    ['create_tasks_batch', true],
+    ['create_task_list_with_tasks', true],
+    ['send_channel_message', true],
+    ['edit_canvas_blocks', true],
+  ]);
+
   constructor(
     private readonly canvasClient: CanvasClientService,
-    private readonly tasksService: TasksService
+    private readonly tasksService: TasksService,
+    private readonly canvasSuggestionService: CanvasSuggestionService,
+    private readonly chatService: ChatService
   ) {}
 
   createServer(): McpServer {
@@ -24,10 +41,35 @@ export class McpService {
 
   private registerTools(serverInstance: McpServer) {
     const server = serverInstance as any;
+    const registerTool = (
+      name: string,
+      description: string,
+      inputSchema: Record<string, z.ZodTypeAny>,
+      cb: (args: any) => Promise<any>
+    ) => {
+      const requireConfirmation = this.toolPolicies.get(name) ?? true;
+      return server.registerTool(
+        name,
+        {
+          description,
+          inputSchema,
+          annotations: {
+            readOnlyHint: !requireConfirmation,
+            destructiveHint: requireConfirmation,
+          },
+          _meta: {
+            stack: {
+              require_confirmation: requireConfirmation,
+            },
+          },
+        },
+        cb
+      );
+    };
 
-    server.tool(
+    registerTool(
       'get_canvas_blocks',
-      'Read all top-level blocks from a canvas. Returns an array of blocks with index, type, and text.',
+      'Read all top-level blocks from a canvas. Returns an array of blocks with stable id, index, type, and text.',
       { canvas_id: z.string().describe('The canvas document ID') },
       async ({ canvas_id }) => {
         const blocks = await this.canvasClient.getBlocks(canvas_id);
@@ -37,79 +79,83 @@ export class McpService {
       }
     );
 
-    server.tool(
-      'insert_canvas_block',
-      'Insert a new block into the canvas after the given index. If afterIndex is -1 or omitted, the block is prepended.',
+    const newCanvasBlockSchema = z.object({
+      id: z
+        .string()
+        .optional()
+        .describe('Optional stable block ID. Omit unless preserving or explicitly creating one.'),
+      type: z
+        .enum(['paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote', 'codeBlock'])
+        .optional()
+        .default('paragraph')
+        .describe('Block node type'),
+      content: z.string().optional().describe('Plain text content of the block'),
+      text: z.string().optional().describe('Alias for content'),
+    });
+
+    const canvasMutationSchema = z.discriminatedUnion('action', [
+      z.object({
+        action: z.literal('replace_text'),
+        block_id: z.string().describe('Stable ID of the block to edit'),
+        new_text: z.string().describe('Full replacement plain text for the block'),
+      }),
+      z.object({
+        action: z.literal('replace_block'),
+        block_id: z.string().describe('Stable ID of the block to replace'),
+        new_block: newCanvasBlockSchema.describe('Replacement block. Its id defaults to the replaced block id.'),
+      }),
+      z.object({
+        action: z.literal('insert_before'),
+        target_block_id: z.string().nullable().optional().describe('Target block ID. Null/omitted prepends.'),
+        new_block: newCanvasBlockSchema.describe('Block to insert'),
+      }),
+      z.object({
+        action: z.literal('insert_after'),
+        target_block_id: z.string().nullable().optional().describe('Target block ID. Null/omitted appends.'),
+        new_block: newCanvasBlockSchema.describe('Block to insert'),
+      }),
+      z.object({
+        action: z.literal('delete_block'),
+        block_id: z.string().describe('Stable ID of the block to delete'),
+      }),
+    ]);
+
+    registerTool(
+      'edit_canvas_blocks',
+      [
+        'Apply multiple canvas block edits atomically using stable block IDs.',
+        'Use this single tool for all canvas edits; do not target blocks by index.',
+        'For rewriting/deleting/recreating a section, send one mutations array so the user can accept once.',
+      ].join(' '),
       {
         canvas_id: z.string().describe('The canvas document ID'),
-        content: z.string().describe('Text content of the new block'),
-        type: z
-          .enum(['paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote', 'codeBlock'])
+        message_id: z
+          .string()
           .optional()
-          .default('paragraph')
-          .describe('Block node type (default: paragraph)'),
-        after_index: z
-          .number()
-          .int()
-          .optional()
-          .describe('Index of the block to insert after. Omit or use -1 to prepend.'),
+          .describe('Optional assistant message/session identifier for suggestion linking'),
+        action_id: z.string().optional().describe('Optional parent AI action identifier'),
+        mutations: z.array(canvasMutationSchema).min(1).describe('Ordered batch of id-based canvas mutations'),
       },
-      async ({ canvas_id, content, type, after_index }) => {
-        const result = await this.canvasClient.insertBlock(canvas_id, content, type, after_index);
+      async ({ canvas_id, message_id, action_id, mutations }) => {
+        const suggestions = await this.canvasSuggestionService.createFromMutations({
+          canvasId: canvas_id,
+          messageId: message_id,
+          actionId: action_id,
+          mutations,
+          createdBy: 'ai',
+        });
+        const result = {
+          ok: true,
+          suggestions,
+          createdSuggestionCount: suggestions.length,
+        };
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
       }
     );
 
-    server.tool(
-      'update_canvas_block',
-      'Replace the text content of an existing block at the given index.',
-      {
-        canvas_id: z.string().describe('The canvas document ID'),
-        index: z.number().int().describe('Zero-based index of the block to update'),
-        content: z.string().describe('New text content for the block'),
-      },
-      async ({ canvas_id, index, content }) => {
-        const result = await this.canvasClient.updateBlock(canvas_id, index, content);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      }
-    );
-
-    server.tool(
-      'delete_canvas_block',
-      'Delete the block at the given index from the canvas.',
-      {
-        canvas_id: z.string().describe('The canvas document ID'),
-        index: z.number().int().describe('Zero-based index of the block to delete'),
-      },
-      async ({ canvas_id, index }) => {
-        const result = await this.canvasClient.deleteBlock(canvas_id, index);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      }
-    );
-
-    server.tool(
-      'reorder_canvas_blocks',
-      'Move a block from one position to another in the canvas.',
-      {
-        canvas_id: z.string().describe('The canvas document ID'),
-        from_index: z.number().int().describe('Zero-based index of the block to move'),
-        to_index: z.number().int().describe('Zero-based target index to move the block to'),
-      },
-      async ({ canvas_id, from_index, to_index }) => {
-        const result = await this.canvasClient.reorderBlocks(canvas_id, from_index, to_index);
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      }
-    );
-
-    server.tool(
+    registerTool(
       'create_task',
       'Create a task in a task list with permission enforcement via task service.',
       {
@@ -148,7 +194,7 @@ export class McpService {
       }
     );
 
-    server.tool(
+    registerTool(
       'create_tasks_batch',
       'Create multiple tasks in one call and return per-item success/failure.',
       {
@@ -194,7 +240,7 @@ export class McpService {
       }
     );
 
-    server.tool(
+    registerTool(
       'create_task_list_with_tasks',
       'Create a new task list and multiple tasks from an AI-reviewed canvas action.',
       {
@@ -301,7 +347,7 @@ export class McpService {
       }
     );
 
-    server.tool(
+    registerTool(
       'list_task_lists',
       'List task lists available to the acting user (optionally by channel).',
       {
@@ -317,7 +363,34 @@ export class McpService {
       }
     );
 
-    server.tool(
+    registerTool(
+      'list_tasks',
+      'List task items inside a task list, including status, priority, due date, creator, and assignees.',
+      {
+        workspace_id: z.string().uuid().describe('Workspace ID'),
+        task_list_id: z.string().uuid().describe('Task list ID'),
+        acting_user_id: z.string().uuid().describe('User ID performing this action'),
+        status: z.nativeEnum(TaskStatus).optional().describe('Optional task status filter'),
+        priority: z.nativeEnum(TaskPriority).optional().describe('Optional task priority filter'),
+        assignee_id: z.string().uuid().optional().describe('Optional workspace member ID filter'),
+        page: z.number().int().min(1).optional().default(1).describe('Page number'),
+        size: z.number().int().min(1).max(200).optional().default(100).describe('Page size'),
+      },
+      async ({ workspace_id, task_list_id, acting_user_id, status, priority, assignee_id, page, size }) => {
+        const result = await this.tasksService.listTasksForMcp(workspace_id, acting_user_id, task_list_id, {
+          status,
+          priority,
+          assigneeId: assignee_id,
+          page,
+          size,
+        });
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
+      }
+    );
+
+    registerTool(
       'search_workspace_members',
       'Search workspace members for assignment suggestions (optional channel scope).',
       {
@@ -337,6 +410,68 @@ export class McpService {
         );
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(members, null, 2) }],
+        };
+      }
+    );
+
+    registerTool(
+      'query_tasks',
+      'Query tasks in a channel for workload/progress analysis. Returns task data with assignee information.',
+      {
+        workspace_id: z.string().uuid().describe('Workspace ID'),
+        channel_id: z.string().uuid().describe('Channel ID to analyze'),
+        acting_user_id: z.string().uuid().describe('User ID performing this action'),
+        status: z.nativeEnum(TaskStatus).optional().describe('Optional task status filter'),
+        is_overdue: z.boolean().optional().describe('When true, only return non-done tasks past due date'),
+      },
+      async ({ workspace_id, channel_id, acting_user_id, status, is_overdue }) => {
+        const tasks = await this.tasksService.queryTasksForMcp(workspace_id, acting_user_id, {
+          channelId: channel_id,
+          status,
+          isOverdue: is_overdue,
+        });
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(tasks, null, 2) }],
+        };
+      }
+    );
+
+    registerTool(
+      'send_channel_message',
+      'Send a Markdown text message to a channel as the acting user. The message may include resolved @username mentions.',
+      {
+        workspace_id: z.string().uuid().describe('Workspace ID'),
+        channel_id: z.string().uuid().describe('Channel ID'),
+        acting_user_id: z.string().uuid().describe('User ID sending the message'),
+        message: z.string().min(1).max(10000).describe('Message content to send to channel'),
+        mentions: z
+          .array(
+            z.object({
+              userId: z.string().uuid().optional(),
+              workspaceMemberId: z.string().uuid().optional(),
+              name: z.string().optional(),
+              email: z.string().optional(),
+            })
+          )
+          .optional()
+          .describe('Resolved users to mention. Message content must include matching @name or @email tokens.'),
+      },
+      async ({ workspace_id, channel_id, acting_user_id, message, mentions }) => {
+        const cleanMentions = Array.isArray(mentions)
+          ? mentions.filter((mention) => mention?.userId || mention?.workspaceMemberId)
+          : [];
+        const sent = await this.chatService.sendMessage(workspace_id, channel_id, acting_user_id, {
+          content: message,
+          messageType: 'text',
+          ...(cleanMentions.length ? { metadata: { mentions: cleanMentions } } : {}),
+        });
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ ok: true, messageId: sent.id, channelId: sent.channelId }, null, 2),
+            },
+          ],
         };
       }
     );

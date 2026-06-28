@@ -10,6 +10,7 @@ export * from './channel/channel-role.entity';
 export * from './canvas/canvas.entity';
 export * from './canvas/canvas-permission.entity';
 export * from './canvas/canvas-recent.entity';
+export * from './canvas/canvas-suggestion.entity';
 export * from './notification/notification-event.entity';
 export * from './notification/notification-recipient.entity';
 export * from './notification/notification-outbox.entity';
